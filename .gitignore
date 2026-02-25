@@ -10,3 +10,4 @@
 !tests.mk
 !dna-query32.fasta
 !dna-reference32.fasta
+!custom_barrier.S
