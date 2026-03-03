@@ -40,7 +40,7 @@ else
 		exit 2; \
 	fi; \
 	app_dir="$(CURDIR)/$$app_path"; \
-	$(MAKE) -C '$(HAMMER_SIM_DIR)' APP_DIR="$$app_dir" all
+	$(MAKE) -C '$(HAMMER_SIM_DIR)' APP_DIR="$$app_dir" all >/dev/null
 ifneq ($(strip $(TEST)),)
 	@app_bin_dir="$(CURDIR)/$(HAMMER_SIM_DIR)/bin/$(APP)"; \
 	test_bin="$$app_bin_dir/$(TEST)/$(HAMMER_SIM_TARGET)"; \
@@ -53,8 +53,8 @@ ifneq ($(strip $(TEST)),)
 		exit 2; \
 	fi
 else
-	@app_dir="$(CURDIR)/$(selected-app-path)"; \
-	$(MAKE) -C '$(HAMMER_SIM_DIR)' APP_DIR="$$app_dir" run
+	@app_bin_dir="$(CURDIR)/$(HAMMER_SIM_DIR)/bin/$(APP)"; \
+	$(MAKE) -C "$$app_bin_dir" run-all
 endif
 endif
 
