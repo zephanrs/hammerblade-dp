@@ -14,12 +14,23 @@
 
 #define ALLOC_NAME "default_allocator"
 
+static void read_seq_token(FILE* file, char* token, const char* filename) {
+  if (fscanf(file, "%63s", token) != 1) {
+    fprintf(stderr, "Failed to read sequence token from %s\n", filename);
+    exit(EXIT_FAILURE);
+  }
+}
+
 void read_seq(const char* filename, uint8_t* seq, int num_seq) {
   FILE* file = fopen(filename, "r");
+  if (file == nullptr) {
+    fprintf(stderr, "Failed to open %s\n", filename);
+    exit(EXIT_FAILURE);
+  }
   for (int i = 0; i < num_seq; i++) {
     char temp_seq[64];
-    fscanf(file, "%s", temp_seq); // skip line number;
-    fscanf(file, "%s", temp_seq);
+    read_seq_token(file, temp_seq, filename); // skip line number;
+    read_seq_token(file, temp_seq, filename);
     for (int j = 0; j < 32; j++) {
       seq[(32*i)+j] = temp_seq[j]; 
     }

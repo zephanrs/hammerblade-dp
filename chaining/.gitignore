@@ -7,4 +7,5 @@
 !main.cpp
 !app_path.mk
 !template.mk
+!test_defs.mk
 !tests.mk
