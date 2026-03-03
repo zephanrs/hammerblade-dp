@@ -1,0 +1,12 @@
+*
+
+!.gitignore
+!Makefile
+!kernel.cpp
+!unroll.hpp
+!main.cpp
+!app_path.mk
+!template.mk
+!tests.mk
+!dna-query32.fasta
+!dna-reference32.fasta

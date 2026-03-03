@@ -1,13 +1,4 @@
-*
-
-!.gitignore
-!Makefile
-!kernel.cpp
-!unroll.hpp
-!main.cpp
-!app_path.mk
-!template.mk
-!tests.mk
-!dna-query32.fasta
-!dna-reference32.fasta
-!custom_barrier.S
+/hammer-sim/build/
+/hammer-sim/bin/
+/sw/*/seq-len_*/
+/chaining/chain-len_*/

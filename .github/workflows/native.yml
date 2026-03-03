@@ -1,0 +1,20 @@
+name: Native
+
+on:
+  push:
+
+jobs:
+  make-native:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch submodules
+        run: |
+          git config --global url."https://github.com/".insteadOf git@github.com:
+          git submodule sync --recursive
+          git submodule update --init --recursive
+
+      - name: Build and run native tests
+        run: make native

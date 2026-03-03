@@ -1,0 +1,202 @@
+#include <bsg_manycore.h>
+#include <bsg_cuda_lite_barrier.h>
+#include "bsg_barrier_multipod.h"
+#include "unroll.hpp"
+#include <cstdint>
+
+// parameters
+#define QRY_CORE (SEQ_LEN / bsg_tiles_Y)
+#define REF_CORE (SEQ_LEN / bsg_tiles_X)
+
+#define NUM_TILES (bsg_tiles_X*bsg_tiles_Y)
+#define MATCH     1
+#define MISMATCH -1
+#define GAP       1
+
+// default buffer values 
+#define BUFFER { .right_done = 1, .bottom_done = 1, .max_left = -1, .max_top = -1 }
+
+inline int max(int a, int b) {
+  return (a > b) ? a : b;
+}
+
+inline int max(int a, int b, int c) {
+  return max(a, max(b,c));
+}
+
+inline int max(int a, int b, int c, int d) {
+  return max(max(a,b), max(c,d));
+}
+
+struct buffer_t {
+  int      dp[QRY_CORE+1][REF_CORE+1];
+  uint8_t  qrybuf[QRY_CORE];
+  uint8_t  refbuf[REF_CORE];
+
+  int right_done  =  1;
+  int bottom_done =  1;
+  int max_left   = -1;
+  int max_top    = -1;
+
+  int      *left_done;
+  int      *top_done;
+  int      *left_dp;
+  int      *top_dp;
+  int      *right_max;
+  int      *bottom_max;
+  uint8_t  *next_qry;
+  uint8_t  *next_ref;
+};
+
+// initialize remote pointers
+static void init_buffer(buffer_t *b, int x, int y) {
+  b->left_done  = (int *)     bsg_remote_ptr(x - 1, y, &b->right_done  );
+  b->top_done   = (int *)     bsg_remote_ptr(x, y - 1, &b->bottom_done );
+  b->left_dp    = (int *)     bsg_remote_ptr(x - 1, y, &b->dp[0][0]    );
+  b->top_dp     = (int *)     bsg_remote_ptr(x, y - 1, &b->dp[0][0]    );
+  b->right_max  = (int *)     bsg_remote_ptr(x + 1, y, &b->max_left    );
+  b->bottom_max = (int *)     bsg_remote_ptr(x, y + 1, &b->max_top     );
+  b->next_qry   = (uint8_t *) bsg_remote_ptr(x - 1, y, &b->qrybuf[0]   );
+  b->next_ref   = (uint8_t *) bsg_remote_ptr(x, y - 1, &b->refbuf[0]   );
+}
+
+static buffer_t buffers[2] = { BUFFER, BUFFER };
+
+// current buffer
+buffer_t *curr;
+
+// Kernel main;
+extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int pod_id)
+{
+  bsg_barrier_tile_group_init();
+  bsg_barrier_tile_group_sync();
+  bsg_cuda_print_stat_kernel_start();
+
+  init_buffer(&buffers[0], __bsg_x, __bsg_y);
+  init_buffer(&buffers[1], __bsg_x, __bsg_y);
+
+  for (int i = 0; i < NUM_SEQ; i++) {
+    curr = &buffers[i & 0x1];
+
+    // ensure buffers are ready
+    int rdy = bsg_lr(&(curr->right_done));
+    if (!rdy) bsg_lr_aq(&(curr->right_done));
+    asm volatile("" ::: "memory");
+
+    rdy = bsg_lr(&(curr->bottom_done));
+    if (!rdy) bsg_lr_aq(&(curr->bottom_done));
+    asm volatile("" ::: "memory");
+
+    if (!__bsg_x) {
+      // load query
+      unrolled_load<uint8_t, QRY_CORE>(
+        curr->qrybuf,
+        &qry[SEQ_LEN * i + (__bsg_y * QRY_CORE)]
+      );
+    }
+
+    if (!__bsg_y) {
+      // load reference
+      unrolled_load<uint8_t, REF_CORE>(
+        curr->refbuf,
+        &ref[SEQ_LEN * i + (__bsg_x * REF_CORE)]
+      );
+    }
+
+    int maxv = 0;
+
+    if (__bsg_x) {
+      // wait for core to the left to write
+      int rdy = bsg_lr(&(curr->max_left));
+      if (rdy == -1) bsg_lr_aq(&(curr->max_left));
+      asm volatile("" ::: "memory");
+
+      // update maximum value
+      maxv = max(maxv, curr->max_left);
+      curr->max_left = -1;
+
+      // copy over query
+      unrolled_load<uint8_t, QRY_CORE>(
+        curr->qrybuf,
+        curr->next_qry
+      );
+
+      // copy over dp table
+      unrolled_load<int, QRY_CORE+1, REF_CORE+1>(
+        &(curr->dp[0][0]),
+        &(curr->left_dp[REF_CORE])
+      );
+
+      // indicate we are done with the buffer
+      *(curr->left_done) = 1;
+    }
+    
+    if (__bsg_y) {
+      // wait for core above to write
+      int rdy = bsg_lr(&(curr->max_top));
+      if (rdy == -1) bsg_lr_aq(&(curr->max_top));
+      asm volatile("" ::: "memory");
+
+      // update maximum value
+      maxv = max(maxv, curr->max_top);
+      curr->max_top = -1;
+
+      // copy over reference
+      unrolled_load<uint8_t, REF_CORE>(
+        curr->refbuf,
+        curr->next_ref
+      );
+
+      // copy over dp table
+      unrolled_load<int, REF_CORE+1>(
+        &(curr->dp[0][0]),
+        &(curr->top_dp[QRY_CORE * (REF_CORE + 1)])
+      );
+
+      // indicate we are done with the buffer
+      *(curr->top_done) = 1;
+    }
+    
+    // do dp calculation
+    for (int j = 1; j <= QRY_CORE; j++) {
+      for (int k = 1; k <= REF_CORE; k++) {
+        int match      = (curr->qrybuf[j-1] == curr->refbuf[k-1]) ? MATCH : MISMATCH;
+
+        int score_diag = curr->dp[j-1][k-1] + match;
+        int score_up   = curr->dp[j-1][k]   - GAP;
+        int score_left = curr->dp[j][k-1]   - GAP;
+
+        int val = max(0, score_diag, score_up, score_left);
+
+        if (val > maxv) {
+          maxv = val;
+        }
+
+        curr->dp[j][k] = val;
+      }
+    }
+    
+    if (__bsg_x < (bsg_tiles_X - 1)) {
+      // activate right core (and transfer max)
+      curr->right_done   = 0;
+      *(curr->right_max) = maxv;
+    }
+
+    if (__bsg_y < (bsg_tiles_Y - 1)) {
+      // activate bottom core (and transfer max)
+      curr->bottom_done   = 0;
+      *(curr->bottom_max) = maxv;
+    }
+
+    // write result
+    if ((__bsg_x == (bsg_tiles_X - 1)) && (__bsg_y == (bsg_tiles_Y - 1)))
+      output[i] = maxv;
+  }
+  
+  // kernel end;
+  bsg_fence();
+  bsg_barrier_tile_group_sync();
+  bsg_fence();
+  bsg_cuda_print_stat_kernel_end();
+  return 0;
+}
