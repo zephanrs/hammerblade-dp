@@ -42,6 +42,7 @@ volatile int max_data  = 0;
 uint8_t refbuf[REF_CORE + 1];
 int H1[REF_CORE + 1];
 int H2[REF_CORE + 1];
+int path_chunk[REF_CORE];
 
 int B[SEQ_LEN+1];
 
@@ -180,6 +181,10 @@ int parallel_fill(
 
     max_mailbox.full = 0;
 
+    if (dir == -1) {
+      local_path[0] = max_idx;
+    }
+
     first_max_mailbox->dp_val = max_score;
     first_max_mailbox->qry    = max_idx;
     first_max_mailbox->full   = 1;
@@ -203,7 +208,7 @@ int parallel_fill(
 }
 
 // Kernel main;
-extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int pod_id)
+extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int* path, int pod_id)
 {
   bsg_barrier_tile_group_init();
   bsg_barrier_tile_group_sync();
@@ -216,6 +221,10 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int pod_id)
       &refbuf[1],
       &ref[SEQ_LEN * s + (CORE_ID * REF_CORE)]
     );
+
+    for (int k = 0; k < REF_CORE; k++) {
+      path_chunk[k] = -1;
+    }
 
     int a;
 
@@ -241,6 +250,10 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int pod_id)
         7 - CORE_ID,
         4
       );
+    }
+
+    for (int k = 0; k < REF_CORE; k++) {
+      path[(s * SEQ_LEN) + (CORE_ID * REF_CORE) + k] = path_chunk[k];
     }
 
     if (CORE_ID == 0) {
