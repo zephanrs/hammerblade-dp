@@ -81,6 +81,16 @@ make generate
 make -C chain-len_256__lookback_4 profile.log
 ```
 
+The `chaining` app now has multiple variants under `chaining/`.
+
+For the underlying per-application simulator flow, use the variant directory:
+
+```sh
+cd chaining/direct
+make generate
+make -C chain-len_256__lookback_4 profile.log
+```
+
 ## Useful Commands
 
 List available application names:

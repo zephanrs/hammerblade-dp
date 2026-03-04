@@ -22,7 +22,7 @@ help:
 		'  make list-apps' \
 		'' \
 		'Applications:' \
-		'  1d, dynamic, 2d, chaining'
+		'  1d, dynamic, 2d, chaining, baseline, naive, efficient, step1, step2, step3, step4'
 
 list-apps:
 	@$(foreach app,$(APPLICATIONS),printf '%-10s %s\n' '$(app)' '$(APP_PATH_$(app))';)
@@ -40,7 +40,7 @@ else
 		exit 2; \
 	fi; \
 	app_dir="$(CURDIR)/$$app_path"; \
-	$(MAKE) -C '$(HAMMER_SIM_DIR)' APP_DIR="$$app_dir" all >/dev/null
+		$(MAKE) -C '$(HAMMER_SIM_DIR)' APP_DIR="$$app_dir" APP_NAME='$(APP)' all >/dev/null
 ifneq ($(strip $(TEST)),)
 	@app_bin_dir="$(CURDIR)/$(HAMMER_SIM_DIR)/bin/$(APP)"; \
 	test_bin="$$app_bin_dir/$(TEST)/$(HAMMER_SIM_TARGET)"; \
