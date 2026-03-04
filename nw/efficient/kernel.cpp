@@ -48,7 +48,8 @@ int B[SEQ_LEN+1];
 int parallel_fill(
   uint8_t* qry,
   uint8_t* ref,
-  int      len,
+  int      start, // inclusive
+  int      end, // exclusive
   int      dir, // 1 for forward, -1 for backward
   int      init,
   int      core_id,
@@ -80,10 +81,10 @@ int parallel_fill(
 
   B[0] = H_prev[REF_CORE];
 
-  qry = (dir == 1) ? qry : qry + len - 1;
+  qry = (dir == 1) ? qry + start : qry + end - 1;
 
   // do dp calculation row by row
-  for (int i = 0; i < len; i++) {
+  for (int i = 0; i < end - start; i++) {
     uint8_t qry_char;
 
     if (is_first) {
@@ -120,7 +121,7 @@ int parallel_fill(
 
     if (is_last) {
       int idx = i + 1;
-      int ridx = len - idx;
+      int ridx = (end - start) - idx;
       B[idx] = H_curr[REF_CORE];
 
       if (idx == ridx) { // sync halves
@@ -161,6 +162,8 @@ int parallel_fill(
   }
 
   if (is_last) {
+    max_idx =  ((dir == 1) ? start + max_idx : (end - max_idx));
+
     next_max_mailbox->dp_val = max_score;
     next_max_mailbox->qry    = max_idx;
     next_max_mailbox->full   = 1;
@@ -174,6 +177,7 @@ int parallel_fill(
       max_score = max_mailbox.dp_val;
       max_idx   = max_mailbox.qry;
     }
+
     max_mailbox.full = 0;
 
     first_max_mailbox->dp_val = max_score;
@@ -219,6 +223,7 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int pod_id)
       a = parallel_fill(
         &qry[s * SEQ_LEN],
         ref,
+        0,
         SEQ_LEN,
         1,
         -(CORE_ID * REF_CORE * GAP),
@@ -229,6 +234,7 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int pod_id)
       a = parallel_fill(
         &qry[s * SEQ_LEN],
         ref,
+        0,
         SEQ_LEN,
         -1,
         -((CORES_PER_GROUP - 1 - CORE_ID) * REF_CORE * GAP),
