@@ -52,7 +52,6 @@ int parallel_fill(
   int      start, // inclusive
   int      end, // exclusive
   int      dir, // 1 for forward, -1 for backward
-  int      init,
   int      core_id,
   int      num_cores
 ) {
@@ -77,7 +76,7 @@ int parallel_fill(
   int max_idx   = 0;
 
   for (int k = 0; k <= REF_CORE; k++) {
-    H_prev[k] = init - k * GAP;
+    H_prev[k] = - (core_id * REF_CORE * GAP)  - k * GAP;
   }
 
   B[0] = H_prev[REF_CORE];
@@ -91,7 +90,7 @@ int parallel_fill(
     if (is_first) {
       qry_char = *qry;
       qry += dir;
-      H_curr[0] = init - (i + 1) * GAP;
+      H_curr[0] = - (core_id * REF_CORE * GAP) - (i + 1) * GAP;
     } else {
       // wait for core to the left to write
       int rdy = bsg_lr((int*)&(mailbox.full));
@@ -182,7 +181,7 @@ int parallel_fill(
     max_mailbox.full = 0;
 
     if (dir == -1) {
-      local_path[0] = max_idx;
+      path_chunk[0] = max_idx;
     }
 
     first_max_mailbox->dp_val = max_score;
@@ -194,7 +193,7 @@ int parallel_fill(
   if (rdy == 0) bsg_lr_aq((int*)&(max_mailbox.full));
   asm volatile("" ::: "memory");
 
-  int ret = max_mailbox.dp_val;
+  int ret = max_mailbox.qry;
 
   if (!is_last) {
     next_max_mailbox->dp_val = max_mailbox.dp_val;
@@ -226,38 +225,44 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int* path, int po
       path_chunk[k] = -1;
     }
 
-    int a;
+    int low  = 0;
+    int high = SEQ_LEN; 
 
-    if (CORE_ID < HALF_CORES) {
+    for (int num_cores = 4; num_cores > 0; num_cores >>= 1) {
+
+      int a;
+      int dir = 1;
+      int id  = CORE_ID & (num_cores - 1);
+
+      if (num_cores & CORE_ID) { // backward
+        dir  = -1;
+        id  ^= (num_cores - 1);
+      }
+
       a = parallel_fill(
         &qry[s * SEQ_LEN],
         ref,
-        0,
-        SEQ_LEN,
-        1,
-        -(CORE_ID * REF_CORE * GAP),
-        CORE_ID,
-        4
+        low,
+        high,
+        dir,
+        id,
+        num_cores
       );
-    } else {
-      a = parallel_fill(
-        &qry[s * SEQ_LEN],
-        ref,
-        0,
-        SEQ_LEN,
-        -1,
-        -((CORES_PER_GROUP - 1 - CORE_ID) * REF_CORE * GAP),
-        7 - CORE_ID,
-        4
-      );
+
+    if (CORE_ID == 0 && num_cores == 4) {
+      output[s] = max_mailbox.dp_val;
+    }
+
+    if (num_cores & CORE_ID) { // backward
+      low = a;
+    } else { 
+      high = a;
+    }
+
     }
 
     for (int k = 0; k < REF_CORE; k++) {
       path[(s * SEQ_LEN) + (CORE_ID * REF_CORE) + k] = path_chunk[k];
-    }
-
-    if (CORE_ID == 0) {
-      output[s] = a;
     }
 
     bsg_barrier_tile_group_sync();
