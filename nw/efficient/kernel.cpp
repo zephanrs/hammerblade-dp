@@ -229,6 +229,13 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int* path, int po
     int high = SEQ_LEN; 
 
     for (int num_cores = 4; num_cores > 0; num_cores >>= 1) {
+      // The communication pattern changes at each Hirschberg level, so all
+      // per-tile mailboxes must be quiescent before we repurpose them.
+      mailbox.full = 0;
+      max_mailbox.full = 0;
+      ready = 1;
+      max_ready = 0;
+      bsg_barrier_tile_group_sync();
 
       int a;
       int dir = 1;
@@ -258,6 +265,8 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int* path, int po
     } else { 
       high = a;
     }
+
+    bsg_barrier_tile_group_sync();
 
     }
 
