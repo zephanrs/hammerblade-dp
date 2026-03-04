@@ -32,6 +32,7 @@ struct mailbox_t {
 
 // local mailbox to receive data from left core
 mailbox_t mailbox = {0, 0, 0};
+mailbox_t max_mailbox = {0, 0, 0};
 volatile int ready = 1;
 
 volatile int max_ready = 0;
@@ -58,7 +59,9 @@ int parallel_fill(
   bool is_last  = (core_id == num_cores - 1);
 
   mailbox_t *next_mailbox  = (mailbox_t *)bsg_remote_ptr(__bsg_x, __bsg_y + dir, &mailbox);
+  mailbox_t *next_max_mailbox = (mailbox_t *)bsg_remote_ptr(__bsg_x, __bsg_y + dir, &max_mailbox);
   mailbox_t *first_mailbox = (mailbox_t *)bsg_remote_ptr(__bsg_x, __bsg_y - (core_id * dir), &mailbox);
+  mailbox_t *first_max_mailbox = (mailbox_t *)bsg_remote_ptr(__bsg_x, __bsg_y - (core_id * dir), &max_mailbox);
   volatile int *prev_ready = (volatile int *)bsg_remote_ptr(__bsg_x, __bsg_y - dir, (void*)&ready);
 
   // hirschberg stuff
@@ -68,7 +71,7 @@ int parallel_fill(
   int *H_curr = H1;
   int *H_prev = H2;
 
-  int max_score = 0;
+  int max_score = INT32_MIN;
   int max_idx   = 0;
 
   for (int k = 0; k <= REF_CORE; k++) {
@@ -118,11 +121,19 @@ int parallel_fill(
     if (is_last) {
       int idx = i + 1;
       int ridx = len - idx;
+      B[idx] = H_curr[REF_CORE];
+
       if (idx == ridx) { // sync halves
         *next_ready = 1;
         int rdy = bsg_lr((int*)&max_ready);
         if (rdy == 0) bsg_lr_aq((int*)&max_ready);
         asm volatile("" ::: "memory");
+
+        int score = next_B[ridx];
+        if (score + H_curr[REF_CORE] > max_score) {
+          max_score = score + H_curr[REF_CORE];
+          max_idx   = idx;
+        }
       } else if (idx > ridx) { // start computing max
         int score = next_B[ridx];
         if (score + H_curr[REF_CORE] > max_score) {
@@ -130,7 +141,6 @@ int parallel_fill(
           max_idx   = idx;
         }
       }
-      B[idx] = H_curr[REF_CORE]; // move this into an ELSE branch
     } else {
       // activate right core, wait for it to be empty
       int rdy = bsg_lr((int*)&ready);
@@ -151,37 +161,41 @@ int parallel_fill(
   }
 
   if (is_last) {
-    next_mailbox->dp_val = max_score;
-    next_mailbox->qry    = max_idx;
+    next_max_mailbox->dp_val = max_score;
+    next_max_mailbox->qry    = max_idx;
+    next_max_mailbox->full   = 1;
     *next_ready = 0;
 
-    int rdy = bsg_lr((int*)&max_ready);
-    if (rdy == 1) bsg_lr_aq((int*)&max_ready);
+    int rdy = bsg_lr((int*)&max_mailbox.full);
+    if (rdy == 0) bsg_lr_aq((int*)&max_mailbox.full);
     asm volatile("" ::: "memory");
 
-    if (mailbox.dp_val > max_score) {
-      max_score = mailbox.dp_val;
-      max_idx   = mailbox.qry;
+    if (max_mailbox.dp_val > max_score) {
+      max_score = max_mailbox.dp_val;
+      max_idx   = max_mailbox.qry;
     }
+    max_mailbox.full = 0;
 
-    first_mailbox->dp_val = max_score;
-    first_mailbox->qry    = max_idx;
-    first_mailbox->full   = 1;
+    first_max_mailbox->dp_val = max_score;
+    first_max_mailbox->qry    = max_idx;
+    first_max_mailbox->full   = 1;
   }
 
-  int rdy = bsg_lr((int*)&(mailbox.full));
-  if (rdy == 0) bsg_lr_aq((int*)&(mailbox.full));
+  int rdy = bsg_lr((int*)&(max_mailbox.full));
+  if (rdy == 0) bsg_lr_aq((int*)&(max_mailbox.full));
   asm volatile("" ::: "memory");
 
+  int ret = max_mailbox.dp_val;
+
   if (!is_last) {
-    next_mailbox->dp_val = mailbox.dp_val;
-    next_mailbox->qry    = mailbox.qry;
-    next_mailbox->full   = 1;
+    next_max_mailbox->dp_val = max_mailbox.dp_val;
+    next_max_mailbox->qry    = max_mailbox.qry;
+    next_max_mailbox->full   = 1;
   }
 
-  mailbox.full = 0;
+  max_mailbox.full = 0;
   
-  return mailbox.dp_val;
+  return ret;
 }
 
 // Kernel main;
