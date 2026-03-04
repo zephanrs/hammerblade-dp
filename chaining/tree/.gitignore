@@ -1,7 +1,6 @@
 *
 
 !.gitignore
-!README.md
 !Makefile
 !kernel.cpp
 !unroll.hpp
@@ -10,9 +9,3 @@
 !template.mk
 !test_defs.mk
 !tests.mk
-!direct/
-!direct/**
-!original/
-!original/**
-!tree/
-!tree/**
