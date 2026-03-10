@@ -1,6 +1,7 @@
 #include <bsg_manycore.h>
 #include <bsg_cuda_lite_barrier.h>
 #include "bsg_barrier_multipod.h"
+#include "../mailbox.hpp"
 #include "unroll.hpp"
 #include <cstdint>
 
@@ -8,7 +9,6 @@
 #define NUM_GROUPS bsg_tiles_X
 #define CORE_ID __bsg_y
 #define CORES_PER_GROUP bsg_tiles_Y
-#define HALF_CORES (CORES_PER_GROUP / 2)
 
 // parameters
 #define REF_CORE (SEQ_LEN / CORES_PER_GROUP)
@@ -21,251 +21,280 @@ inline int max(int a, int b) {
 }
 
 inline int max(int a, int b, int c) {
-  return max(a, max(b,c));
+  return max(a, max(b, c));
 }
 
 struct mailbox_t {
-  int      dp_val; // or max
-  int      qry;    // or idx 
-  int      full;
+  int dp_val;
+  int max;
+  int qry;
+  int idx;
 };
 
-// local mailbox to receive data from left core
-mailbox_t mailbox = {0, 0, 0};
-mailbox_t max_mailbox = {0, 0, 0};
-volatile int ready = 1;
+hb_mailbox_state_t<mailbox_t> mailboxes = {};
 
-volatile int max_ready = 0;
-volatile int max_data  = 0;
+// Per-core working buffers.
+uint8_t ref_segment[REF_CORE + 1];
+int dp_row_even[REF_CORE + 1];
+int dp_row_odd[REF_CORE + 1];
+int split_points[REF_CORE];
 
-// global buffers
-uint8_t refbuf[REF_CORE + 1];
-int H1[REF_CORE + 1];
-int H2[REF_CORE + 1];
-int path_chunk[REF_CORE];
+int boundary_scores[SEQ_LEN + 1];
 
-int B[SEQ_LEN+1];
+inline void store_row_fields(mailbox_t *data, int dp_val, uint8_t qry) {
+  *data = mailbox_t{dp_val, 0, qry, 0};
+}
+
+inline void store_result_fields(mailbox_t *data, int max_score, int idx) {
+  *data = mailbox_t{0, max_score, 0, idx};
+}
+
+inline mailbox_t receive_previous(hb_mailbox_state_t<mailbox_t> *mailbox, int direction) {
+  mailbox_t incoming;
+  if (direction == 1) {
+    check_and_clear_left(mailbox);
+    incoming = read_left(mailbox);
+    set_left_ready(mailbox);
+  } else {
+    check_and_clear_right(mailbox);
+    incoming = read_right(mailbox);
+    set_right_ready(mailbox);
+  }
+  return incoming;
+}
+
+inline mailbox_t receive_next(hb_mailbox_state_t<mailbox_t> *mailbox, int direction) {
+  mailbox_t incoming;
+  if (direction == 1) {
+    check_and_clear_right(mailbox);
+    incoming = read_right(mailbox);
+    set_right_ready(mailbox);
+  } else {
+    check_and_clear_left(mailbox);
+    incoming = read_left(mailbox);
+    set_left_ready(mailbox);
+  }
+  return incoming;
+}
+
+inline void send_previous_result(
+  hb_mailbox_state_t<mailbox_t> *mailbox,
+  int direction,
+  int max_score,
+  int idx
+) {
+  if (direction == 1) {
+    check_and_clear_left_ready(mailbox);
+    store_result_fields(&mailbox->left_mailbox->data, max_score, idx);
+    set_left_full(mailbox);
+  } else {
+    check_and_clear_right_ready(mailbox);
+    store_result_fields(&mailbox->right_mailbox->data, max_score, idx);
+    set_right_full(mailbox);
+  }
+}
+
+inline void send_next_row(
+  hb_mailbox_state_t<mailbox_t> *mailbox,
+  int direction,
+  int dp_val,
+  uint8_t qry
+) {
+  if (direction == 1) {
+    check_and_clear_right_ready(mailbox);
+    store_row_fields(&mailbox->right_mailbox->data, dp_val, qry);
+    set_right_full(mailbox);
+  } else {
+    check_and_clear_left_ready(mailbox);
+    store_row_fields(&mailbox->left_mailbox->data, dp_val, qry);
+    set_left_full(mailbox);
+  }
+}
+
 
 int parallel_fill(
-  uint8_t* qry,
-  uint8_t* ref,
+  uint8_t *query,
   int      start, // inclusive
   int      end, // exclusive
-  int      dir, // 1 for forward, -1 for backward
-  int      core_id,
-  int      num_cores
+  int      direction, // 1 for forward, -1 for backward
+  int      active_core_id,
+  int      active_cores
 ) {
+  hb_mailbox_state_t<mailbox_t> *mailbox = &mailboxes;
+  const bool is_first = (active_core_id == 0);
+  const bool is_last = (active_core_id == active_cores - 1);
+  const bool is_forward = (direction == 1);
+  const int query_span = end - start;
 
-  bool is_first = !core_id;
-  bool is_last  = (core_id == num_cores - 1);
+  volatile int *neighbor_boundary_scores =
+    (volatile int *)bsg_remote_ptr(__bsg_x, __bsg_y + direction, (void *)&boundary_scores[0]);
 
-  mailbox_t *next_mailbox  = (mailbox_t *)bsg_remote_ptr(__bsg_x, __bsg_y + dir, &mailbox);
-  mailbox_t *next_max_mailbox = (mailbox_t *)bsg_remote_ptr(__bsg_x, __bsg_y + dir, &max_mailbox);
-  mailbox_t *first_mailbox = (mailbox_t *)bsg_remote_ptr(__bsg_x, __bsg_y - (core_id * dir), &mailbox);
-  mailbox_t *first_max_mailbox = (mailbox_t *)bsg_remote_ptr(__bsg_x, __bsg_y - (core_id * dir), &max_mailbox);
-  volatile int *prev_ready = (volatile int *)bsg_remote_ptr(__bsg_x, __bsg_y - dir, (void*)&ready);
-
-  // hirschberg stuff
-  volatile int *next_ready = (volatile int *)bsg_remote_ptr(__bsg_x, __bsg_y + dir, (void*)&max_ready);
-  volatile int *next_B     = (volatile int *)bsg_remote_ptr(__bsg_x, __bsg_y + dir, (void*)&B[0]);
-
-  int *H_curr = H1;
-  int *H_prev = H2;
+  int *current_row = dp_row_even;
+  int *previous_row = dp_row_odd;
 
   int max_score = INT32_MIN;
   int max_idx   = 0;
 
-  for (int k = 0; k <= REF_CORE; k++) {
-    H_prev[k] = - (core_id * REF_CORE * GAP)  - k * GAP;
+  for (int col = 0; col <= REF_CORE; col++) {
+    previous_row[col] = -(active_core_id * REF_CORE * GAP) - col * GAP;
   }
 
-  B[0] = H_prev[REF_CORE];
+  boundary_scores[0] = previous_row[REF_CORE];
 
-  qry = (dir == 1) ? qry + start : qry + end - 1;
+  query = is_forward ? (query + start) : (query + end - 1);
 
-  // do dp calculation row by row
-  for (int i = 0; i < end - start; i++) {
-    uint8_t qry_char;
+  for (int row = 0; row < query_span; row++) {
+    uint8_t query_char;
 
     if (is_first) {
-      qry_char = *qry;
-      qry += dir;
-      H_curr[0] = - (core_id * REF_CORE * GAP) - (i + 1) * GAP;
+      query_char = *query;
+      query += direction;
+      current_row[0] = -(active_core_id * REF_CORE * GAP) - (row + 1) * GAP;
     } else {
-      // wait for core to the left to write
-      int rdy = bsg_lr((int*)&(mailbox.full));
-      if (rdy == 0) bsg_lr_aq((int*)&(mailbox.full));
-      asm volatile("" ::: "memory");
-
-      H_curr[0] = mailbox.dp_val;
-      qry_char = mailbox.qry;
-
-      // indicate we are done with the buffer
-      mailbox.full = 0;
-      *prev_ready = 1;
+      const mailbox_t incoming = receive_previous(mailbox, direction);
+      current_row[0] = incoming.dp_val;
+      query_char = incoming.qry;
     }
 
-    uint8_t* refptr = &refbuf[(dir == 1) ? 1 : REF_CORE];
+    uint8_t *ref_ptr = &ref_segment[is_forward ? 1 : REF_CORE];
 
-    for (int k = 1; k <= REF_CORE; k++) {
-      int match      = (qry_char == *refptr) ? MATCH : MISMATCH;
-      refptr        += dir;
+    for (int col = 1; col <= REF_CORE; col++) {
+      const int match = (query_char == *ref_ptr) ? MATCH : MISMATCH;
+      ref_ptr += direction;
 
-      int score_diag = H_prev[k-1] + match;
-      int score_up   = H_prev[k]   - GAP;
-      int score_left = H_curr[k-1] - GAP;
+      const int score_diag = previous_row[col - 1] + match;
+      const int score_up = previous_row[col] - GAP;
+      const int score_left = current_row[col - 1] - GAP;
 
-      int val = max(score_diag, score_up, score_left);
-      H_curr[k] = val;
+      current_row[col] = max(score_diag, score_up, score_left);
     }
 
     if (is_last) {
-      int idx = i + 1;
-      int ridx = (end - start) - idx;
-      B[idx] = H_curr[REF_CORE];
-
-      if (idx == ridx) { // sync halves
-        *next_ready = 1;
-        int rdy = bsg_lr((int*)&max_ready);
-        if (rdy == 0) bsg_lr_aq((int*)&max_ready);
-        asm volatile("" ::: "memory");
-
-        int score = next_B[ridx];
-        if (score + H_curr[REF_CORE] > max_score) {
-          max_score = score + H_curr[REF_CORE];
-          max_idx   = idx;
-        }
-      } else if (idx > ridx) { // start computing max
-        int score = next_B[ridx];
-        if (score + H_curr[REF_CORE] > max_score) {
-          max_score = score + H_curr[REF_CORE];
-          max_idx   = idx;
-        }
-      }
+      boundary_scores[row + 1] = current_row[REF_CORE];
     } else {
-      // activate right core, wait for it to be empty
-      int rdy = bsg_lr((int*)&ready);
-      if (rdy == 0) bsg_lr_aq((int*)&ready);
-      asm volatile("" ::: "memory");
-
-      ready = 0;
-
-      next_mailbox->dp_val = H_curr[REF_CORE];
-      next_mailbox->qry = qry_char;
-      next_mailbox->full = 1;
+      send_next_row(mailbox, direction, current_row[REF_CORE], query_char);
     }
 
-    // swap DP rows
-    int *tmp = H_curr;
-    H_curr = H_prev;
-    H_prev = tmp;
+    // alternate the two dp row buffers across iterations.
+    int *tmp = current_row;
+    current_row = previous_row;
+    previous_row = tmp;
   }
 
   if (is_last) {
-    max_idx =  ((dir == 1) ? start + max_idx : (end - max_idx));
+    bsg_fence();
+    if (direction == 1) {
+      check_and_clear_right_ready(mailbox);
+      mailbox->right_mailbox->data = mailbox_t{};
+      set_right_full(mailbox);
+    } else {
+      check_and_clear_left_ready(mailbox);
+      mailbox->left_mailbox->data = mailbox_t{};
+      set_left_full(mailbox);
+    }
+    receive_next(mailbox, direction);
 
-    next_max_mailbox->dp_val = max_score;
-    next_max_mailbox->qry    = max_idx;
-    next_max_mailbox->full   = 1;
-    *next_ready = 0;
-
-    int rdy = bsg_lr((int*)&max_mailbox.full);
-    if (rdy == 0) bsg_lr_aq((int*)&max_mailbox.full);
-    asm volatile("" ::: "memory");
-
-    if (max_mailbox.dp_val > max_score) {
-      max_score = max_mailbox.dp_val;
-      max_idx   = max_mailbox.qry;
+    int best_row = start;
+    for (int idx = 0; idx <= query_span; idx++) {
+      const int candidate_row = is_forward ? (start + idx) : (end - idx);
+      const int score = boundary_scores[idx] + neighbor_boundary_scores[query_span - idx];
+      if ((score > max_score) || ((score == max_score) && (candidate_row < best_row))) {
+        max_score = score;
+        best_row = candidate_row;
+      }
     }
 
-    max_mailbox.full = 0;
+    max_idx = best_row;
 
-    if (dir == -1) {
-      path_chunk[0] = max_idx;
+    if (direction == 1) {
+      check_and_clear_right_ready(mailbox);
+      store_result_fields(&mailbox->right_mailbox->data, max_score, max_idx);
+      set_right_full(mailbox);
+    } else {
+      check_and_clear_left_ready(mailbox);
+      store_result_fields(&mailbox->left_mailbox->data, max_score, max_idx);
+      set_left_full(mailbox);
     }
 
-    first_max_mailbox->dp_val = max_score;
-    first_max_mailbox->qry    = max_idx;
-    first_max_mailbox->full   = 1;
+    const mailbox_t incoming_max = receive_next(mailbox, direction);
+
+    if (incoming_max.max > max_score) {
+      max_score = incoming_max.max;
+      max_idx = incoming_max.idx;
+    }
+
+    if (direction == -1) {
+      split_points[0] = max_idx;
+    }
   }
 
-  int rdy = bsg_lr((int*)&(max_mailbox.full));
-  if (rdy == 0) bsg_lr_aq((int*)&(max_mailbox.full));
-  asm volatile("" ::: "memory");
+  const mailbox_t propagated_result = is_last
+    ? mailbox_t{0, max_score, 0, max_idx}
+    : receive_next(mailbox, direction);
 
-  int ret = max_mailbox.qry;
-
-  if (!is_last) {
-    next_max_mailbox->dp_val = max_mailbox.dp_val;
-    next_max_mailbox->qry    = max_mailbox.qry;
-    next_max_mailbox->full   = 1;
+  if (!is_first) {
+    send_previous_result(mailbox, direction, propagated_result.max, propagated_result.idx);
   }
 
-  max_mailbox.full = 0;
-  
-  return ret;
+  return propagated_result.idx;
 }
 
 // Kernel main;
 extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int* path, int pod_id)
 {
   bsg_barrier_tile_group_init();
+  init_mailboxes(&mailboxes);
+  reset_mailboxes(&mailboxes);
   bsg_barrier_tile_group_sync();
   bsg_cuda_print_stat_kernel_start();
 
   // Each group processes a set of sequences
-  for (int s = GROUP_ID; s < NUM_SEQ; s += NUM_GROUPS) {
-    // load reference chunk
+  for (int seq_id = GROUP_ID; seq_id < NUM_SEQ; seq_id += NUM_GROUPS) {
     unrolled_load<uint8_t, REF_CORE>(
-      &refbuf[1],
-      &ref[SEQ_LEN * s + (CORE_ID * REF_CORE)]
+      &ref_segment[1],
+      &ref[SEQ_LEN * seq_id + (CORE_ID * REF_CORE)]
     );
 
-    for (int k = 0; k < REF_CORE; k++) {
-      path_chunk[k] = -1;
+    for (int col = 0; col < REF_CORE; col++) {
+      split_points[col] = -1;
     }
 
-    int low  = 0;
-    int high = SEQ_LEN; 
+    int query_low = 0;
+    int query_high = SEQ_LEN;
 
-    for (int num_cores = 4; num_cores > 1; num_cores >>= 1) {
+    for (int active_cores = 4; active_cores > 1; active_cores >>= 1) {
+      int split_idx;
+      int direction = 1;
+      int active_core_id = CORE_ID & (active_cores - 1);
 
-      int a;
-      int dir = 1;
-      int id  = CORE_ID & (num_cores - 1);
-
-      if (num_cores & CORE_ID) { // backward
-        dir  = -1;
-        id  ^= (num_cores - 1);
+      if (active_cores & CORE_ID) {
+        direction = -1;
+        active_core_id ^= (active_cores - 1);
       }
 
-      a = parallel_fill(
-        &qry[s * SEQ_LEN],
-        ref,
-        low,
-        high,
-        dir,
-        id,
-        num_cores
+      split_idx = parallel_fill(
+        &qry[seq_id * SEQ_LEN],
+        query_low,
+        query_high,
+        direction,
+        active_core_id,
+        active_cores
       );
 
-      if (CORE_ID == 0 && num_cores == 4) {
-        output[s] = max_mailbox.dp_val;
+      if (CORE_ID == 0 && active_cores == 4) {
+        output[seq_id] = peek_right(&mailboxes).max;
       }
 
-      if (num_cores & CORE_ID) { // backward
-        low = a;
+      if (active_cores & CORE_ID) {
+        query_low = split_idx;
       } else { 
-        high = a;
+        query_high = split_idx;
       }
-
     }
 
-    for (int k = 0; k < REF_CORE; k++) {
-      path[(s * SEQ_LEN) + (CORE_ID * REF_CORE) + k] = path_chunk[k];
+    for (int col = 0; col < REF_CORE; col++) {
+      path[(seq_id * SEQ_LEN) + (CORE_ID * REF_CORE) + col] = split_points[col];
     }
-
-    bsg_barrier_tile_group_sync();
   }
 
   // kernel end;
