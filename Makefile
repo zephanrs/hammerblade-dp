@@ -22,7 +22,7 @@ help:
 		'  make list-apps' \
 		'' \
 		'Applications:' \
-		'  1d, dynamic, 2d, chaining, baseline, naive, efficient, step1, step2, step3, step4'
+		'  1d, dynamic, 2d, banded, chaining, baseline, naive, efficient, step1, step2, step3, step4'
 
 list-apps:
 	@$(foreach app,$(APPLICATIONS),printf '%-10s %s\n' '$(app)' '$(APP_PATH_$(app))';)

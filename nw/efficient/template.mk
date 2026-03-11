@@ -40,7 +40,7 @@ include $(EXAMPLES_PATH)/link.mk
 
 
 # Device code;
-RISCV_CCPPFLAGS += -O3 -std=c++14
+RISCV_CCPPFLAGS += -Os -fno-unroll-loops -std=c++14
 RISCV_CCPPFLAGS += -I$(HB_HAMMERBENCH_PATH)/apps/common
 RISCV_CCPPFLAGS += -DNUM_POD_X=$(NUM_POD_X)
 RISCV_CCPPFLAGS += -DBSG_MACHINE_GLOBAL_X=$(BSG_MACHINE_GLOBAL_X)

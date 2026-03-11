@@ -140,6 +140,12 @@ inline void clear_bottom_full(hb_mailbox_state_t<Payload> *mailboxes) {
 }
 
 template <typename Payload>
+inline void check_and_clear_mailbox(hb_mailbox_port_t<Payload> *mailbox) {
+  hb_wait_flag(&mailbox->full);
+  mailbox->full = 0;
+}
+
+template <typename Payload>
 inline void check_and_clear_left(hb_mailbox_state_t<Payload> *mailboxes) {
   check_left(mailboxes);
   clear_left_full(mailboxes);
@@ -247,24 +253,33 @@ inline void check_and_clear_bottom_ready(hb_mailbox_state_t<Payload> *mailboxes)
   clear_bottom_ready(mailboxes);
 }
 
+inline void set_ready(volatile int *ready_flag) {
+  *ready_flag = 1;
+}
+
+inline void wait_for_ready(volatile int *ready_flag) {
+  hb_wait_flag(ready_flag);
+  *ready_flag = 0;
+}
+
 template <typename Payload>
 inline void set_left_ready(hb_mailbox_state_t<Payload> *mailboxes) {
-  *mailboxes->left_ready_flag = 1;
+  set_ready(mailboxes->left_ready_flag);
 }
 
 template <typename Payload>
 inline void set_right_ready(hb_mailbox_state_t<Payload> *mailboxes) {
-  *mailboxes->right_ready_flag = 1;
+  set_ready(mailboxes->right_ready_flag);
 }
 
 template <typename Payload>
 inline void set_top_ready(hb_mailbox_state_t<Payload> *mailboxes) {
-  *mailboxes->top_ready_flag = 1;
+  set_ready(mailboxes->top_ready_flag);
 }
 
 template <typename Payload>
 inline void set_bottom_ready(hb_mailbox_state_t<Payload> *mailboxes) {
-  *mailboxes->bottom_ready_flag = 1;
+  set_ready(mailboxes->bottom_ready_flag);
 }
 
 #endif
