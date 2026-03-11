@@ -125,8 +125,8 @@ int sw_banded_multipod(int argc, char ** argv) {
   eva_t d_ref;
   eva_t d_output;
 
-  const hb_mc_pod_id_t pod_count = static_cast<hb_mc_pod_id_t>(device.pod_count);
-  for (hb_mc_pod_id_t pod = 0; pod < pod_count; ++pod) {
+  hb_mc_pod_id_t pod;
+  hb_mc_device_foreach_pod_id(&device, pod) {
     printf("Loading program for pod %d\n", pod);
     BSG_CUDA_CALL(hb_mc_device_set_default_pod(&device, pod));
     BSG_CUDA_CALL(hb_mc_device_program_init(&device, bin_path, ALLOC_NAME, 0));
@@ -147,7 +147,7 @@ int sw_banded_multipod(int argc, char ** argv) {
     hb_mc_dimension_t tg_dim = { .x = bsg_tiles_X, .y = bsg_tiles_Y};
     hb_mc_dimension_t grid_dim = { .x = 1, .y = 1};
     #define CUDA_ARGC 4
-    uint32_t cuda_argv[CUDA_ARGC] = {d_query, d_ref, d_output, pod};
+    uint32_t cuda_argv[CUDA_ARGC] = {d_query, d_ref, d_output, static_cast<uint32_t>(pod)};
 
 
     // Enqueue kernel;
@@ -168,7 +168,7 @@ int sw_banded_multipod(int argc, char ** argv) {
   std::vector<int> expected_output(num_seq);
 
   bool fail = false;
-  for (hb_mc_pod_id_t pod = 0; pod < pod_count; ++pod) {
+  hb_mc_device_foreach_pod_id(&device, pod) {
     printf("Reading results: pods %d\n", pod);
     BSG_CUDA_CALL(hb_mc_device_set_default_pod(&device, pod));
 
