@@ -13,7 +13,7 @@ FIXED_NUM_SEQ=64
 FIXED_COL=4
 FIXED_BAND=64
 BAND_SWEEP=(8 16 32 64 128)
-COL_SWEEP=(1 2 4 8 16)
+COL_SWEEP=(1 2 8 16)
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
@@ -71,8 +71,7 @@ launch_profile_case() {
   local col="$5"
   local name
   name="$(test_name "${seq_len}" "${band_size}" "${num_seq}" "${col}")"
-  local test_dir
-  test_dir="$(make_test_dir "${seq_len}" "${band_size}" "${num_seq}" "${col}")"
+  local test_dir="${SCRIPT_DIR}/${name}"
   local log_dir="${RUN_DIR}/${sweep}"
   local log_file="${log_dir}/${name}.log"
   local status_file="${log_dir}/${name}.status"
@@ -186,6 +185,21 @@ queue_profile_case() {
 prepare_app() {
   log "clean"
   run_with_module "make -C '${SCRIPT_DIR}' clean"
+  log "generate"
+  run_with_module "make -C '${SCRIPT_DIR}' generate"
+}
+
+prepare_cases() {
+  local band_size
+  local col
+
+  for band_size in "${BAND_SWEEP[@]}"; do
+    make_test_dir "${FIXED_SEQ_LEN}" "${band_size}" "${FIXED_NUM_SEQ}" "${FIXED_COL}" > /dev/null
+  done
+
+  for col in "${COL_SWEEP[@]}"; do
+    make_test_dir "${FIXED_SEQ_LEN}" "${FIXED_BAND}" "${FIXED_NUM_SEQ}" "${col}" > /dev/null
+  done
 }
 
 launch_detached() {
@@ -222,6 +236,7 @@ worker_main() {
   ACTIVE_STATUS_FILES=()
   log "run dir: ${RUN_DIR}"
   prepare_app
+  prepare_cases
 
   for band_size in "${BAND_SWEEP[@]}"; do
     queue_profile_case "band-size" "${FIXED_SEQ_LEN}" "${band_size}" "${FIXED_NUM_SEQ}" "${FIXED_COL}"
