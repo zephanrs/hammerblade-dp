@@ -1,6 +1,10 @@
 # sequence length, num sequences
-TESTS += $(call test-name,16,64)
-TESTS += $(call test-name,32,64)
-TESTS += $(call test-name,64,64)
-TESTS += $(call test-name,128,64)
-TESTS += $(call test-name,192,64)
+TESTS += seq-len_16__num-seq_64__threshold_8
+TESTS += seq-len_32__num-seq_64__threshold_16
+TESTS += seq-len_64__num-seq_64__threshold_32
+TESTS += seq-len_128__num-seq_64__threshold_64
+TESTS += seq-len_256__num-seq_64__threshold_64
+TESTS += seq-len_512__num-seq_64__len-min_64__len-seed_1__len-quantum_8__threshold_8
+TESTS += seq-len_512__num-seq_64__len-min_64__len-seed_1__len-quantum_8__threshold_16
+TESTS += seq-len_512__num-seq_64__len-min_64__len-seed_1__len-quantum_8__threshold_32
+TESTS += seq-len_512__num-seq_64__len-min_64__len-seed_1__len-quantum_8__threshold_64

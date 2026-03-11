@@ -11,32 +11,9 @@
 #include <cstdint>
 #include <vector>
 #include <map>
+#include "../common/test_input.hpp"
 
 #define ALLOC_NAME "default_allocator"
-
-static void read_seq_token(FILE* file, char* token, const char* filename) {
-  if (fscanf(file, "%63s", token) != 1) {
-    fprintf(stderr, "Failed to read sequence token from %s\n", filename);
-    exit(EXIT_FAILURE);
-  }
-}
-
-void read_seq(const char* filename, uint8_t* seq, int num_seq) {
-  FILE* file = fopen(filename, "r");
-  if (file == nullptr) {
-    fprintf(stderr, "Failed to open %s\n", filename);
-    exit(EXIT_FAILURE);
-  }
-  for (int i = 0; i < num_seq; i++) {
-    char temp_seq[64];
-    read_seq_token(file, temp_seq, filename); // skip line number;
-    read_seq_token(file, temp_seq, filename);
-    for (int j = 0; j < 32; j++) {
-      seq[(32*i)+j] = temp_seq[j]; 
-    }
-  } 
-  fclose(file);
-}
 
 // Host main;
 int sw_multipod(int argc, char ** argv) {
@@ -51,22 +28,21 @@ int sw_multipod(int argc, char ** argv) {
   int num_seq = NUM_SEQ; // per pod;
   int seq_len = SEQ_LEN;
   printf("num_seq=%d\n", num_seq);
-  printf("seq_len=%d\n", seq_len);
+  printf("max_seq_len=%d\n", seq_len);
+  printf("min_seq_len=%d\n", VAR_LEN_MIN);
   
   // prepare inputs;
   uint8_t* query = (uint8_t*) malloc(num_seq*seq_len*sizeof(uint8_t));
   uint8_t* ref = (uint8_t*) malloc(num_seq*seq_len*sizeof(uint8_t));
-  // hacky way to get longer sequences:
-  read_seq(query_path, query, num_seq * (seq_len / 32));
-  read_seq(ref_path, ref, num_seq * (seq_len / 32));
+  uint8_t* packed_query = (uint8_t*) malloc(num_seq*seq_len*sizeof(uint8_t));
+  uint8_t* packed_ref = (uint8_t*) malloc(num_seq*seq_len*sizeof(uint8_t));
 
-  // per-sequence lengths (uniform for now);
   int* qry_lens = (int*) malloc(num_seq*sizeof(int));
   int* ref_lens = (int*) malloc(num_seq*sizeof(int));
-  for (int i = 0; i < num_seq; i++) {
-    qry_lens[i] = seq_len;
-    ref_lens[i] = seq_len;
-  }
+  prepare_sw_inputs(query_path, ref_path, query, ref, qry_lens, ref_lens, num_seq, seq_len);
+  sort_sw_inputs_by_length(query, ref, qry_lens, ref_lens, num_seq, seq_len);
+  pack_variable_stride_sequences(query, qry_lens, num_seq, seq_len, packed_query);
+  pack_variable_stride_sequences(ref, ref_lens, num_seq, seq_len, packed_ref);
 
   // atomic sequence counter (shared across groups);
   int seq_counter_init = 0;
@@ -100,8 +76,8 @@ int sw_multipod(int argc, char ** argv) {
     // DMA transfer;
     printf("Transferring data: pod %d\n", pod);
     std::vector<hb_mc_dma_htod_t> htod_job;
-    htod_job.push_back({d_query, query, num_seq*seq_len*sizeof(uint8_t)});
-    htod_job.push_back({d_ref, ref, num_seq*seq_len*sizeof(uint8_t)});
+    htod_job.push_back({d_query, packed_query, num_seq*seq_len*sizeof(uint8_t)});
+    htod_job.push_back({d_ref, packed_ref, num_seq*seq_len*sizeof(uint8_t)});
     htod_job.push_back({d_qry_lens, qry_lens, num_seq*sizeof(int)});
     htod_job.push_back({d_ref_lens, ref_lens, num_seq*sizeof(int)});
     htod_job.push_back({d_seq_counter, &seq_counter_init, sizeof(int)});
@@ -150,43 +126,14 @@ int sw_multipod(int argc, char ** argv) {
     dtoh_job.push_back({d_output, actual_output, num_seq*sizeof(int)});
     BSG_CUDA_CALL(hb_mc_device_transfer_data_to_host(&device, dtoh_job.data(), dtoh_job.size()));
 
-    int H[seq_len+1][seq_len+1];
-    int m[num_seq];
-    int mj = 0, mk=0;
-    for (int i = 0; i < num_seq; i++) {
-      memset(H, 0, sizeof(H));
-      m[i] = 0;
-      for (int j = 0; j < qry_lens[i]; j++) {
-        for (int k = 0; k < ref_lens[i]; k++) {
-          int match = (query[seq_len*i+j] == ref[seq_len*i+k]) ? 1 : -1;
-          int score_diag = H[j][k] + match;
-          int score_up = H[j][k+1] - 1;
-          int score_left = H[j+1][k] - 1;
-          H[j+1][k+1] = std::max(0, std::max(score_diag, std::max(score_up, score_left)));
-          if (H[j+1][k+1] > m[i]) {
-            mj = j;
-            mk = k;
-            m[i] = H[j+1][k+1];
-          }
-        }
-      }
-    }
-
-    // validate;
-    printf("Max is at row %d, column %d\n", mj, mk);
-    for (int i = 0; i < num_seq; i++) {
-      int actual = actual_output[i];
-      int expected = m[i];
-      if (actual != expected) {
-        fail = true;
-        printf("Mismatch: i=%d, actual=%d, expected=%d\n", i, actual, expected);
-      }
-    }
+    fail |= !validate_sw_outputs(query, ref, qry_lens, ref_lens, seq_len, num_seq, actual_output);
   }
 
 
   // Finish;
   BSG_CUDA_CALL(hb_mc_device_finish(&device));
+  free(packed_query);
+  free(packed_ref);
   free(qry_lens);
   free(ref_lens);
   if (fail) {

@@ -25,6 +25,18 @@ DEFINES += -D_XOPEN_SOURCE=500 -D_BSD_SOURCE -D_DEFAULT_SOURCE
 DEFINES += -Dbsg_tiles_X=$(TILE_GROUP_DIM_X) -Dbsg_tiles_Y=$(TILE_GROUP_DIM_Y)
 DEFINES += -DNUM_POD_X=$(NUM_POD_X) # number of pods simulating now;
 DEFINES += -DNUM_SEQ=$(num-seq) -DSEQ_LEN=$(seq-len) -DMAX_SEQ_LEN=$(seq-len)
+ifdef threshold
+DEFINES += -DCORE_THRESHOLD=$(threshold)
+endif
+ifdef len-min
+DEFINES += -DVAR_LEN_MIN=$(len-min)
+endif
+ifdef len-seed
+DEFINES += -DLEN_SEED=$(len-seed)
+endif
+ifdef len-quantum
+DEFINES += -DLEN_QUANTUM=$(len-quantum)
+endif
 
 FLAGS     = -g -Wall -Wno-unused-function -Wno-unused-variable
 CFLAGS   += -std=c99 $(FLAGS)
@@ -48,6 +60,18 @@ RISCV_CCPPFLAGS += -DBSG_MACHINE_GLOBAL_Y=$(BSG_MACHINE_GLOBAL_Y)
 RISCV_CCPPFLAGS += -Dbsg_tiles_X=$(TILE_GROUP_DIM_X)
 RISCV_CCPPFLAGS += -Dbsg_tiles_Y=$(TILE_GROUP_DIM_Y)
 RISCV_CCPPFLAGS += -DNUM_SEQ=$(num-seq) -DSEQ_LEN=$(seq-len) -DMAX_SEQ_LEN=$(seq-len)
+ifdef threshold
+RISCV_CCPPFLAGS += -DCORE_THRESHOLD=$(threshold)
+endif
+ifdef len-min
+RISCV_CCPPFLAGS += -DVAR_LEN_MIN=$(len-min)
+endif
+ifdef len-seed
+RISCV_CCPPFLAGS += -DLEN_SEED=$(len-seed)
+endif
+ifdef len-quantum
+RISCV_CCPPFLAGS += -DLEN_QUANTUM=$(len-quantum)
+endif
 
 RISCV_TARGET_OBJECTS = kernel.rvo
 BSG_MANYCORE_KERNELS = main.riscv

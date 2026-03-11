@@ -40,12 +40,11 @@ struct launch_mailbox_t {
   int team_size;
   int pred_core_id;
   int succ_core_id;
-  volatile int primed_seq;
   volatile int seq_id; // write last to wake the target core
 };
 
 mailbox_t mailbox = {0, 0, 0, 0};
-launch_mailbox_t launch_mailbox = {0, 0, -1, -1, -2, -2};
+launch_mailbox_t launch_mailbox = {0, 0, -1, -1, -2};
 volatile int next_is_ready = 1;
 
 // these buffers hold one reference chunk and two rolling dp rows per core.
@@ -89,20 +88,25 @@ inline launch_mailbox_t* remote_launch_mailbox_ptr(int core_id) {
   return (launch_mailbox_t*)bsg_remote_ptr(core_x(core_id), core_y(core_id), &launch_mailbox);
 }
 
+// the launcher resets each lane's local datapath state before waking it.
+inline void prime_lane_runtime_state(int core_id) {
+  mailbox_t* remote_mailbox = remote_mailbox_ptr(core_id);
+  volatile int* remote_ready = remote_ready_ptr(core_id);
+  remote_mailbox->full = 0;
+  *remote_ready = 1;
+}
+
 // the launcher first primes every team member with static metadata.
 inline void prime_launch_mailbox(int core_id,
                                  int lane_id,
                                  int team_size,
                                  int pred_core_id,
-                                 int succ_core_id,
-                                 int seq_id) {
+                                 int succ_core_id) {
   launch_mailbox_t* remote = remote_launch_mailbox_ptr(core_id);
   remote->lane_id = lane_id;
   remote->team_size = team_size;
   remote->pred_core_id = pred_core_id;
   remote->succ_core_id = succ_core_id;
-  asm volatile("" ::: "memory");
-  remote->primed_seq = seq_id;
 }
 
 // waking a core is one final seq_id store after its metadata is ready.
@@ -191,7 +195,6 @@ extern "C" int kernel(uint8_t* qry,
   int seen_seq = -2;
   mailbox.full = 0;
   next_is_ready = 1;
-  launch_mailbox.primed_seq = -2;
   launch_mailbox.seq_id = -2;
   bsg_barrier_tile_group_sync();
 
@@ -199,26 +202,17 @@ extern "C" int kernel(uint8_t* qry,
     launch_info_t launch = {};
     // only the last arrival returns true and becomes the launcher for this round.
     if (check_in_and_maybe_launch(sched, ref_lens, num_seq, my_core_id, &launch)) {
-      const int lane0_succ = (launch.team_size > 1) ? launch.team_core_ids[1] : -1;
-      prime_launch_mailbox(launch.team_core_ids[0],
-                           0,
-                           launch.team_size,
-                           -1,
-                           lane0_succ,
-                           launch.seq_id);
-      bsg_fence();
-      wake_launch_mailbox(launch.team_core_ids[0], launch.seq_id);
-
-      // lane 0 can now begin while the launcher primes the rest of the team.
-      for (int lane = 1; lane < launch.team_size; lane++) {
-        const int pred_core_id = launch.team_core_ids[lane - 1];
+      // each lane is woken as soon as its own metadata is ready.
+      for (int lane = 0; lane < launch.team_size; lane++) {
+        const int pred_core_id = (lane > 0) ? launch.team_core_ids[lane - 1] : -1;
         const int succ_core_id = (lane + 1 < launch.team_size) ? launch.team_core_ids[lane + 1] : -1;
+        prime_lane_runtime_state(launch.team_core_ids[lane]);
         prime_launch_mailbox(launch.team_core_ids[lane],
                              lane,
                              launch.team_size,
                              pred_core_id,
-                             succ_core_id,
-                             launch.seq_id);
+                             succ_core_id);
+        wake_launch_mailbox(launch.team_core_ids[lane], launch.seq_id);
       }
     }
 
@@ -226,12 +220,6 @@ extern "C" int kernel(uint8_t* qry,
 
     // shutdown uses the same relay structure, but with seq_id = -1.
     if (launch_mailbox.seq_id < 0) {
-      if (launch_mailbox.succ_core_id >= 0) {
-        launch_mailbox_t* succ_launch = remote_launch_mailbox_ptr(launch_mailbox.succ_core_id);
-        while (succ_launch->primed_seq != -1) {
-        }
-        wake_launch_mailbox(launch_mailbox.succ_core_id, -1);
-      }
       bsg_barrier_tile_group_sync();
       break;
     }
@@ -266,19 +254,6 @@ extern "C" int kernel(uint8_t* qry,
 
     if (pred_core_id >= 0) {
       pred_next_is_ready = remote_ready_ptr(pred_core_id);
-    }
-
-    // startup mirrors the steady-state mailbox protocol before row 0 begins.
-    mailbox.full = 0;
-    next_is_ready = (succ_core_id >= 0) ? 0 : 1;
-    if (pred_next_is_ready != nullptr) {
-      *pred_next_is_ready = 1;
-    }
-    if (succ_core_id >= 0) {
-      launch_mailbox_t* succ_launch = remote_launch_mailbox_ptr(succ_core_id);
-      while (succ_launch->primed_seq != s) {
-      }
-      wake_launch_mailbox(succ_core_id, s);
     }
 
     int *H_curr = H1;
