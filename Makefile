@@ -21,8 +21,8 @@ help:
 		'  make sim APP=<app> TEST=<test>' \
 		'  make list-apps' \
 		'' \
-		'Applications:' \
-		'  1d, dynamic, 2d, banded, chaining, baseline, naive, efficient, step1, step2, step3, step4'
+		'Applications:'
+	@printf '  %s\n' '$(APPLICATIONS)'
 
 list-apps:
 	@$(foreach app,$(APPLICATIONS),printf '%-10s %s\n' '$(app)' '$(APP_PATH_$(app))';)

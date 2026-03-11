@@ -145,7 +145,14 @@ inline void wait_for_launch(int* seen_seq) {
   *seen_seq = launch_mailbox.seq_id;
 }
 
-extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int pod_id)
+inline int wait_for_ticket_core(const sched_state_t* sched, int ticket) {
+  const queue_slot_t* slot = &sched->queue[ticket % NUM_TILES];
+  while (slot->ticket != ticket) {
+  }
+  asm volatile("" ::: "memory");
+  return slot->core_id;
+}
+
 extern "C" int kernel(uint8_t* qry,
                       uint8_t* ref,
                       int* qry_lens,
@@ -174,10 +181,8 @@ extern "C" int kernel(uint8_t* qry,
     if (launch_mailbox.seq_id < 0) {
       const int next_ticket = my_ticket + 1;
       if (next_ticket < (launch_mailbox.base_ticket + NUM_TILES)) {
-        const queue_slot_t& next_slot = sched->queue[next_ticket % NUM_TILES];
-        if (next_slot.ticket == next_ticket) {
-          write_launch_mailbox(next_slot.core_id, -1, launch_mailbox.base_ticket, my_core_id);
-        }
+        const int next_core_id = wait_for_ticket_core(sched, next_ticket);
+        write_launch_mailbox(next_core_id, -1, launch_mailbox.base_ticket, my_core_id);
       }
       bsg_barrier_tile_group_sync();
       break;
@@ -204,12 +209,8 @@ extern "C" int kernel(uint8_t* qry,
 
     if ((lane_id + 1) < team_size) {
       const int next_ticket = my_ticket + 1;
-      const queue_slot_t& next_slot = sched->queue[next_ticket % NUM_TILES];
-      while (next_slot.ticket != next_ticket) {
-      }
-      succ_core_id = next_slot.core_id;
+      succ_core_id = wait_for_ticket_core(sched, next_ticket);
       succ_mailbox = remote_mailbox_ptr(succ_core_id);
-      write_launch_mailbox(succ_core_id, s, launch_mailbox.base_ticket, my_core_id);
     }
 
     if (pred_core_id >= 0) {
@@ -217,7 +218,13 @@ extern "C" int kernel(uint8_t* qry,
     }
 
     mailbox.full = 0;
-    next_is_ready = 1;
+    next_is_ready = (succ_core_id >= 0) ? 0 : 1;
+    if (pred_next_is_ready != nullptr) {
+      *pred_next_is_ready = 1;
+    }
+    if (succ_core_id >= 0) {
+      write_launch_mailbox(succ_core_id, s, launch_mailbox.base_ticket, my_core_id);
+    }
 
     int *H_curr = H1;
     int *H_prev = H2;
