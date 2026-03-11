@@ -76,7 +76,6 @@ int sw_multipod(int argc, char ** argv) {
   sched_init.remaining = team_size_for_length(ref_lens[0]);
   for (int i = 0; i < NUM_TILES; i++) {
     sched_init.queue[i].core_id = -1;
-    sched_init.queue[i].ticket = -1;
   }
 
   // initialize device;

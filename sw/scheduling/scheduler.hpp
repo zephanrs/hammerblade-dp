@@ -13,7 +13,6 @@
 
 struct queue_slot_t {
   int core_id;
-  volatile int ticket;
 };
 
 struct sched_state_t {

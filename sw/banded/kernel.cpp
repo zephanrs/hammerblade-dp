@@ -20,9 +20,10 @@
 #define MATCH     1
 #define MISMATCH -1
 #define GAP       1
-#define TOTAL_CHUNKS ((SEQ_LEN + COL - 1) / COL)
-#define MAX_LOCAL_CHUNKS ((TOTAL_CHUNKS + CORES_PER_GROUP - 1) / CORES_PER_GROUP)
-#define MAX_LOCAL_COLS (MAX_LOCAL_CHUNKS * COL)
+
+// a band of width BAND_SIZE can overlap one extra chunk when the left edge is unaligned.
+static constexpr int kMaxActiveLocalChunks = 1 + ((BAND_SIZE + COL - 2) / (COL * CORES_PER_GROUP));
+static constexpr int kMaxActiveLocalCols = kMaxActiveLocalChunks * COL;
 
 // keep the mailbox payload compact because it moves at every handoff.
 inline int max(int a, int b) {
@@ -48,10 +49,12 @@ struct mailbox_t {
 
 hb_mailbox_state_t<mailbox_t> mailboxes = {};
 
-// each chunk is one contiguous COL-wide group of reference columns owned by this core.
-uint8_t refbuf[MAX_LOCAL_COLS];
-int prev_dp[MAX_LOCAL_COLS];
-int chunk_diag_seed[MAX_LOCAL_CHUNKS];
+// each chunk is one contiguous COL-wide group of reference columns.
+// a core only keeps the chunks that can be active for it at the same time.
+uint8_t refbuf[kMaxActiveLocalCols];
+int prev_dp[kMaxActiveLocalCols];
+int chunk_diag_seed[kMaxActiveLocalChunks];
+int slot_chunk_id[kMaxActiveLocalChunks];
 
 // this is the diagonal seed for the first active cell on the next row.
 int next_row_diag_seed = 0;
@@ -95,23 +98,12 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int pod_id)
   // each x-group handles an independent sequence stream.
   for (int s = GROUP_ID; s < NUM_SEQ; s += NUM_GROUPS) {
     const int seq_offset = SEQ_LEN * s;
-    const int first_owned_col = CORE_ID * COL;
-    const int local_chunk_count =
-      (CORE_ID >= TOTAL_CHUNKS) ? 0 : (1 + ((TOTAL_CHUNKS - 1 - CORE_ID) / CORES_PER_GROUP));
+    const int total_chunks = (SEQ_LEN + COL - 1) / COL;
 
-    // load all chunks owned by this core, like the 1d kernel does for its full slice.
-    for (int local_chunk = 0; local_chunk < local_chunk_count; local_chunk++) {
-      const int global_chunk = CORE_ID + (local_chunk * CORES_PER_GROUP);
-      const int chunk_start = global_chunk * COL;
-      const int width = min(COL, SEQ_LEN - chunk_start);
-      const int base = local_chunk * COL;
-
-      for (int offset = 0; offset < width; offset++) {
-        refbuf[base + offset] = ref[seq_offset + chunk_start + offset];
-        prev_dp[base + offset] = 0;
-      }
-
-      chunk_diag_seed[local_chunk] = 0;
+    // reset the small active window for this sequence.
+    for (int slot = 0; slot < kMaxActiveLocalChunks; slot++) {
+      slot_chunk_id[slot] = -1;
+      chunk_diag_seed[slot] = 0;
     }
 
     int local_max = 0;
@@ -145,10 +137,22 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int pod_id)
         const int chunk_stop = min(SEQ_LEN, min(end_col, chunk_start + width));
         const int offset_start = (global_chunk == start_chunk) ? (start_col - chunk_start) : 0;
         const int offset_stop = chunk_stop - chunk_start;
-        const int base = local_chunk * COL;
+        const int slot = local_chunk % kMaxActiveLocalChunks;
+        const int base = slot * COL;
         int left;
         int diag;
         uint8_t qry_char;
+
+        // load the chunk into its active slot the first time it enters the band.
+        if (slot_chunk_id[slot] != global_chunk) {
+          slot_chunk_id[slot] = global_chunk;
+          chunk_diag_seed[slot] = 0;
+
+          for (int offset = 0; offset < width; offset++) {
+            refbuf[base + offset] = ref[seq_offset + chunk_start + offset];
+            prev_dp[base + offset] = 0;
+          }
+        }
 
         if (global_chunk == start_chunk) {
           left = 0;
@@ -158,9 +162,9 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int pod_id)
           const mailbox_t incoming = receive_left_token(&mailboxes);
           left = incoming.dp_left;
           // each chunk remembers the previous row's boundary value from its left neighbor.
-          diag = chunk_diag_seed[local_chunk];
+          diag = chunk_diag_seed[slot];
           qry_char = incoming.qry_char;
-          chunk_diag_seed[local_chunk] = incoming.dp_left;
+          chunk_diag_seed[slot] = incoming.dp_left;
         }
 
         // once the boundary state arrives, the whole local chunk runs from scratchpad.
@@ -211,7 +215,21 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int pod_id)
           } else if (CORE_ID == entering_core) {
             const mailbox_t incoming = receive_left_token(&mailboxes);
             const int local_chunk = (next_end_chunk - CORE_ID) / CORES_PER_GROUP;
-            chunk_diag_seed[local_chunk] = incoming.dp_left;
+            const int slot = local_chunk % kMaxActiveLocalChunks;
+            const int chunk_start = next_end_chunk * COL;
+            const int width = min(COL, SEQ_LEN - chunk_start);
+            const int base = slot * COL;
+
+            // preseed the slot one row early so the new right edge has the right diagonal.
+            if (slot_chunk_id[slot] != next_end_chunk) {
+              slot_chunk_id[slot] = next_end_chunk;
+              for (int offset = 0; offset < width; offset++) {
+                refbuf[base + offset] = ref[seq_offset + chunk_start + offset];
+                prev_dp[base + offset] = 0;
+              }
+            }
+
+            chunk_diag_seed[slot] = incoming.dp_left;
           }
         }
       }

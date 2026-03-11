@@ -9,6 +9,7 @@ SEQ_LENS=(16 32 64 128 256)
 NUM_SEQ=64
 TIMEOUT_LIMIT=90m
 MODULE_LOAD_CMD="${MODULE_LOAD_CMD:-module load hammerblade}"
+LAUNCHED_PID=""
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
@@ -92,8 +93,7 @@ launch_profile_job() {
     printf '%s\n' "${status}" > "${status_file}"
     exit "${rc}"
   ) &
-
-  echo $!
+  LAUNCHED_PID="$!"
 }
 
 run_app_batch() {
@@ -105,8 +105,8 @@ run_app_batch() {
   for seq_len in "${SEQ_LENS[@]}"; do
     local name
     name="$(test_name "${seq_len}")"
-    local pid
-    pid="$(launch_profile_job "${app}" "${seq_len}")"
+    launch_profile_job "${app}" "${seq_len}"
+    local pid="${LAUNCHED_PID}"
     pids+=("${pid}")
     names+=("${name}")
     log "[${app}] started ${name} (pid=${pid})"

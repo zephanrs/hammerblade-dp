@@ -3,11 +3,16 @@
 #include <bsg_cuda_lite_barrier.h>
 #include "bsg_barrier_multipod.h"
 #include "scheduler.hpp"
+#include "unroll.hpp"
 #include <cstdint>
 
 #define MATCH     1
 #define MISMATCH -1
 #define GAP       1
+
+#ifndef PREFETCH
+#define PREFETCH 0
+#endif
 
 inline int max(int a, int b) {
   return (a > b) ? a : b;
@@ -29,13 +34,15 @@ struct mailbox_t {
 };
 
 struct launch_mailbox_t {
-  int base_ticket;
+  int lane_id;
+  int team_size;
   int pred_core_id;
+  int succ_core_id;
   volatile int seq_id; // write last to wake the target core
 };
 
 mailbox_t mailbox = {0, 0, 0, 0};
-launch_mailbox_t launch_mailbox = {0, -1, -2};
+launch_mailbox_t launch_mailbox = {0, 0, -1, -1, -2};
 volatile int next_is_ready = 1;
 
 uint8_t refbuf[CORE_THRESHOLD + 1];
@@ -75,35 +82,40 @@ inline launch_mailbox_t* remote_launch_mailbox_ptr(int core_id) {
   return (launch_mailbox_t*)bsg_remote_ptr(core_x(core_id), core_y(core_id), &launch_mailbox);
 }
 
-inline void write_launch_mailbox(int core_id, int seq_id, int base_ticket, int pred_core_id) {
+inline void prime_launch_mailbox(int core_id,
+                                 int lane_id,
+                                 int team_size,
+                                 int pred_core_id,
+                                 int succ_core_id) {
   launch_mailbox_t* remote = remote_launch_mailbox_ptr(core_id);
-  remote->base_ticket = base_ticket;
+  remote->lane_id = lane_id;
+  remote->team_size = team_size;
   remote->pred_core_id = pred_core_id;
+  remote->succ_core_id = succ_core_id;
+}
+
+inline void wake_launch_mailbox(int core_id, int seq_id) {
+  launch_mailbox_t* remote = remote_launch_mailbox_ptr(core_id);
   asm volatile("" ::: "memory");
   remote->seq_id = seq_id;
 }
 
 struct launch_info_t {
   int seq_id;
-  int base_ticket;
   int team_size;
-  int first_core_id;
+  int team_core_ids[NUM_TILES];
 };
 
 inline bool check_in_and_maybe_launch(sched_state_t* sched,
                                       const int* ref_lens,
                                       int num_seq,
                                       int my_core_id,
-                                      int* my_ticket,
                                       launch_info_t* launch) {
   sched_lock(&sched->lock);
 
   const int ticket = sched->wait_tail;
   sched->wait_tail = ticket + 1;
   sched->queue[ticket % NUM_TILES].core_id = my_core_id;
-  asm volatile("" ::: "memory");
-  sched->queue[ticket % NUM_TILES].ticket = ticket;
-  *my_ticket = ticket;
 
   const int seq_id = sched->pending_seq;
   const int old_remaining = sched->remaining;
@@ -116,7 +128,9 @@ inline bool check_in_and_maybe_launch(sched_state_t* sched,
 
   const int team_size = (seq_id >= 0) ? team_size_for_length(ref_lens[seq_id]) : NUM_TILES;
   const int base_ticket = sched->launch_head;
-  const int first_core_id = sched->queue[base_ticket % NUM_TILES].core_id;
+  for (int i = 0; i < team_size; i++) {
+    launch->team_core_ids[i] = sched->queue[(base_ticket + i) % NUM_TILES].core_id;
+  }
   sched->launch_head = base_ticket + team_size;
 
   if ((seq_id >= 0) && ((seq_id + 1) < num_seq)) {
@@ -130,9 +144,7 @@ inline bool check_in_and_maybe_launch(sched_state_t* sched,
   sched_unlock(&sched->lock);
 
   launch->seq_id = seq_id;
-  launch->base_ticket = base_ticket;
   launch->team_size = team_size;
-  launch->first_core_id = first_core_id;
   return true;
 }
 
@@ -143,14 +155,6 @@ inline void wait_for_launch(int* seen_seq) {
   }
   asm volatile("" ::: "memory");
   *seen_seq = launch_mailbox.seq_id;
-}
-
-inline int wait_for_ticket_core(const sched_state_t* sched, int ticket) {
-  const queue_slot_t* slot = &sched->queue[ticket % NUM_TILES];
-  while (slot->ticket != ticket) {
-  }
-  asm volatile("" ::: "memory");
-  return slot->core_id;
 }
 
 extern "C" int kernel(uint8_t* qry,
@@ -167,22 +171,29 @@ extern "C" int kernel(uint8_t* qry,
   bsg_cuda_print_stat_kernel_start();
 
   const int my_core_id = pack_core_id(__bsg_x, __bsg_y);
-  int my_ticket = -1;
   int seen_seq = -2;
 
   while (1) {
-    launch_info_t launch = {0, 0, 0, -1};
-    if (check_in_and_maybe_launch(sched, ref_lens, num_seq, my_core_id, &my_ticket, &launch)) {
-      write_launch_mailbox(launch.first_core_id, launch.seq_id, launch.base_ticket, -1);
+    launch_info_t launch = {};
+    if (check_in_and_maybe_launch(sched, ref_lens, num_seq, my_core_id, &launch)) {
+      for (int lane = 0; lane < launch.team_size; lane++) {
+        const int pred_core_id = (lane > 0) ? launch.team_core_ids[lane - 1] : -1;
+        const int succ_core_id = (lane + 1 < launch.team_size) ? launch.team_core_ids[lane + 1] : -1;
+        prime_launch_mailbox(launch.team_core_ids[lane],
+                             lane,
+                             launch.team_size,
+                             pred_core_id,
+                             succ_core_id);
+      }
+      bsg_fence();
+      wake_launch_mailbox(launch.team_core_ids[0], launch.seq_id);
     }
 
     wait_for_launch(&seen_seq);
 
     if (launch_mailbox.seq_id < 0) {
-      const int next_ticket = my_ticket + 1;
-      if (next_ticket < (launch_mailbox.base_ticket + NUM_TILES)) {
-        const int next_core_id = wait_for_ticket_core(sched, next_ticket);
-        write_launch_mailbox(next_core_id, -1, launch_mailbox.base_ticket, my_core_id);
+      if (launch_mailbox.succ_core_id >= 0) {
+        wake_launch_mailbox(launch_mailbox.succ_core_id, -1);
       }
       bsg_barrier_tile_group_sync();
       break;
@@ -191,8 +202,9 @@ extern "C" int kernel(uint8_t* qry,
     const int s = launch_mailbox.seq_id;
     const int qry_len = qry_lens[s];
     const int ref_len = ref_lens[s];
-    const int team_size = team_size_for_length(ref_len);
-    const int lane_id = my_ticket - launch_mailbox.base_ticket;
+    const int team_size = launch_mailbox.team_size;
+    const int lane_id = launch_mailbox.lane_id;
+    const bool has_pred = launch_mailbox.pred_core_id >= 0;
     const int ref_start = lane_id * CORE_THRESHOLD;
     int ref_len_local = ref_len - ref_start;
     if (ref_len_local > CORE_THRESHOLD) {
@@ -203,13 +215,13 @@ extern "C" int kernel(uint8_t* qry,
     }
 
     const int pred_core_id = launch_mailbox.pred_core_id;
-    int succ_core_id = -1;
+    const int succ_core_id = launch_mailbox.succ_core_id;
     mailbox_t* succ_mailbox = nullptr;
     volatile int* pred_next_is_ready = nullptr;
+    const uint8_t* const qry_seq = &qry[s * MAX_SEQ_LEN];
+    const uint8_t* const ref_seq = &ref[(s * MAX_SEQ_LEN) + ref_start];
 
-    if ((lane_id + 1) < team_size) {
-      const int next_ticket = my_ticket + 1;
-      succ_core_id = wait_for_ticket_core(sched, next_ticket);
+    if (succ_core_id >= 0) {
       succ_mailbox = remote_mailbox_ptr(succ_core_id);
     }
 
@@ -223,7 +235,7 @@ extern "C" int kernel(uint8_t* qry,
       *pred_next_is_ready = 1;
     }
     if (succ_core_id >= 0) {
-      write_launch_mailbox(succ_core_id, s, launch_mailbox.base_ticket, my_core_id);
+      wake_launch_mailbox(succ_core_id, s);
     }
 
     int *H_curr = H1;
@@ -233,15 +245,29 @@ extern "C" int kernel(uint8_t* qry,
     }
 
     int maxv = 0;
-    const int seq_base = s * MAX_SEQ_LEN;
-    for (int k = 0; k < ref_len_local; k++) {
-      refbuf[k + 1] = ref[seq_base + ref_start + k];
+    int k = 0;
+    for (; k + 8 <= ref_len_local; k += 8) {
+      unrolled_load<uint8_t, 8>(&refbuf[k + 1], &ref_seq[k]);
     }
+    for (; k < ref_len_local; k++) {
+      refbuf[k + 1] = ref_seq[k];
+    }
+
+#if PREFETCH
+    register uint8_t next_qry asm("s4");
+    if ((!has_pred) && (qry_len > 0)) {
+      next_qry = qry_seq[0];
+    }
+#endif
 
     for (int i = 0; i < qry_len; i++) {
       uint8_t qry_char;
-      if (pred_core_id < 0) {
-        qry_char = qry[seq_base + i];
+      if (!has_pred) {
+#if PREFETCH
+        qry_char = next_qry;
+#else
+        qry_char = qry_seq[i];
+#endif
         H_curr[0] = 0;
       } else {
         int ready = bsg_lr((int*)&mailbox.full);
@@ -293,6 +319,12 @@ extern "C" int kernel(uint8_t* qry,
       int *tmp = H_curr;
       H_curr = H_prev;
       H_prev = tmp;
+
+#if PREFETCH
+      if ((!has_pred) && (i + 1 < qry_len)) {
+        next_qry = qry_seq[i + 1];
+      }
+#endif
     }
 
     if (lane_id == (team_size - 1)) {
