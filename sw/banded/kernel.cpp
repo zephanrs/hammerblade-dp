@@ -20,8 +20,8 @@
 #define MATCH     1
 #define MISMATCH -1
 #define GAP       1
-#define BLOCK_STRIDE (CORES_PER_GROUP * COL)
-#define MAX_LOCAL_CHUNKS ((SEQ_LEN + BLOCK_STRIDE - 1) / BLOCK_STRIDE)
+#define TOTAL_CHUNKS ((SEQ_LEN + COL - 1) / COL)
+#define MAX_LOCAL_CHUNKS ((TOTAL_CHUNKS + CORES_PER_GROUP - 1) / CORES_PER_GROUP)
 #define MAX_LOCAL_COLS (MAX_LOCAL_CHUNKS * COL)
 
 // keep the mailbox payload compact because it moves at every handoff.
@@ -97,7 +97,7 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int pod_id)
     const int seq_offset = SEQ_LEN * s;
     const int first_owned_col = CORE_ID * COL;
     const int local_chunk_count =
-      (first_owned_col >= SEQ_LEN) ? 0 : (1 + ((SEQ_LEN - 1 - first_owned_col) / BLOCK_STRIDE));
+      (CORE_ID >= TOTAL_CHUNKS) ? 0 : (1 + ((TOTAL_CHUNKS - 1 - CORE_ID) / CORES_PER_GROUP));
 
     // load all chunks owned by this core, like the 1d kernel does for its full slice.
     for (int local_chunk = 0; local_chunk < local_chunk_count; local_chunk++) {
