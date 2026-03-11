@@ -1,0 +1,138 @@
+#include <bsg_manycore.h>
+#include <bsg_cuda_lite_barrier.h>
+#include "bsg_barrier_multipod.h"
+#include "unroll.hpp"
+#include <cstdint>
+
+#define GROUP_ID __bsg_x
+#define NUM_GROUPS bsg_tiles_X
+#define CORE_ID __bsg_y
+#define CORES_PER_GROUP bsg_tiles_Y
+
+// parameters
+#define REF_CORE (SEQ_LEN / CORES_PER_GROUP)
+#define DP_STRIDE (SEQ_LEN + 1)
+#define MATCH     1
+#define MISMATCH -1
+#define GAP       1
+
+inline int max(int a, int b) {
+  return (a > b) ? a : b;
+}
+
+inline int max(int a, int b, int c) {
+  return max(a, max(b,c));
+}
+
+struct mailbox_t {
+  int      dp_val;
+  volatile int full;
+  uint8_t  qry_char;
+};
+
+// local mailbox to receive data from left core
+mailbox_t mailbox = {0, 0, 0};
+volatile int next_is_ready = 1;
+
+// global buffers
+uint8_t refbuf[REF_CORE + 1];
+int H1[REF_CORE + 1];
+int H2[REF_CORE + 1];
+
+// Kernel main;
+extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* dp_matrix, int pod_id)
+{
+  bsg_barrier_tile_group_init();
+  bsg_barrier_tile_group_sync();
+  bsg_cuda_print_stat_kernel_start();
+
+  mailbox_t *next_mailbox = (mailbox_t *)bsg_remote_ptr(__bsg_x, __bsg_y + 1, &mailbox);
+  volatile int *prev_next_is_ready = (volatile int *)bsg_remote_ptr(__bsg_x, __bsg_y - 1, (void*)&next_is_ready);
+
+  // Each group processes a set of sequences
+  for (int s = GROUP_ID; s < NUM_SEQ; s += NUM_GROUPS) {
+    
+    // DP row buffers
+    int *H_curr = H1;
+    int *H_prev = H2;
+    int *seq_dp = &dp_matrix[s * DP_STRIDE * DP_STRIDE];
+    int col_base = CORE_ID * REF_CORE;
+
+    for (int k = 0; k <= REF_CORE; k++) {
+      H_prev[k] = -((CORE_ID * REF_CORE) + k) * GAP;
+    }
+
+    if (CORE_ID == 0) {
+      seq_dp[0] = H_prev[0];
+    }
+    for (int k = 1; k <= REF_CORE; k++) {
+      seq_dp[col_base + k] = H_prev[k];
+    }
+
+    // load reference chunk
+    unrolled_load<uint8_t, REF_CORE>(
+      &refbuf[1],
+      &ref[SEQ_LEN * s + (CORE_ID * REF_CORE)]
+    );
+
+    // do dp calculation row by row
+    for (int i = 0; i < SEQ_LEN; i++) {
+      uint8_t qry_char;
+
+      if (CORE_ID == 0) {
+        qry_char = qry[SEQ_LEN * s + i];
+        H_curr[0] = -(i + 1) * GAP;
+        seq_dp[(i + 1) * DP_STRIDE] = H_curr[0];
+      } else {
+        // wait for core to the left to write
+        int rdy = bsg_lr((int*)&(mailbox.full));
+        if (rdy == 0) bsg_lr_aq((int*)&(mailbox.full));
+        asm volatile("" ::: "memory");
+
+        H_curr[0] = mailbox.dp_val;
+        qry_char = mailbox.qry_char;
+
+        // indicate we are done with the buffer
+        mailbox.full = 0;
+        *prev_next_is_ready = 1;
+      }
+
+      for (int k = 1; k <= REF_CORE; k++) {
+        int match      = (qry_char == refbuf[k]) ? MATCH : MISMATCH;
+
+        int score_diag = H_prev[k-1] + match;
+        int score_up   = H_prev[k]   - GAP;
+        int score_left = H_curr[k-1] - GAP;
+
+        int val = max(score_diag, score_up, score_left);
+        H_curr[k] = val;
+        seq_dp[((i + 1) * DP_STRIDE) + col_base + k] = val;
+      }
+
+      if (CORE_ID < CORES_PER_GROUP - 1) {
+        // activate right core, wait for it to be empty
+        int rdy = bsg_lr((int*)&next_is_ready);
+        if (rdy == 0) bsg_lr_aq((int*)&next_is_ready);
+        asm volatile("" ::: "memory");
+
+        next_is_ready = 0;
+
+        next_mailbox->dp_val = H_curr[REF_CORE];
+        next_mailbox->qry_char = qry_char;
+        next_mailbox->full = 1;
+      }
+
+      // swap DP rows
+      int *tmp = H_curr;
+      H_curr = H_prev;
+      H_prev = tmp;
+    }
+  }
+
+  // kernel end;
+  bsg_fence();
+  bsg_barrier_tile_group_sync();
+  bsg_fence();
+  bsg_cuda_print_stat_kernel_end();
+  return 0;
+}
