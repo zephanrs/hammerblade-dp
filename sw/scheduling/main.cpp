@@ -15,6 +15,7 @@
 
 #define ALLOC_NAME "default_allocator"
 
+// the fasta reader treats each sequence as two whitespace-separated tokens.
 static void read_seq_token(FILE* file, char* token, const char* filename) {
   if (fscanf(file, "%63s", token) != 1) {
     fprintf(stderr, "Failed to read sequence token from %s\n", filename);
@@ -22,6 +23,7 @@ static void read_seq_token(FILE* file, char* token, const char* filename) {
   }
 }
 
+// the checked-in inputs are stored densely as fixed-width ascii strings.
 void read_seq(const char* filename, uint8_t* seq, int num_seq) {
   FILE* file = fopen(filename, "r");
   if (file == nullptr) {
@@ -43,17 +45,20 @@ void read_seq(const char* filename, uint8_t* seq, int num_seq) {
 int sw_multipod(int argc, char ** argv) {
   int r = 0;
   
+  // argv[1] is still the device binary path expected by the existing host flow.
   // command line;
   const char *bin_path = argv[1];
   const char *query_path = argv[2];
   const char *ref_path = argv[3];
 
+  // these tests still use one uniform sequence length even though the kernel is dynamic.
   // parameters;
   int num_seq = NUM_SEQ; // per pod;
   int seq_len = SEQ_LEN;
   printf("num_seq=%d\n", num_seq);
   printf("seq_len=%d\n", seq_len);
   
+  // sequence storage stays dense so validation can reuse the old indexing scheme.
   // prepare inputs;
   uint8_t* query = (uint8_t*) malloc(num_seq*seq_len*sizeof(uint8_t));
   uint8_t* ref = (uint8_t*) malloc(num_seq*seq_len*sizeof(uint8_t));
@@ -61,6 +66,7 @@ int sw_multipod(int argc, char ** argv) {
   read_seq(query_path, query, num_seq * (seq_len / 32));
   read_seq(ref_path, ref, num_seq * (seq_len / 32));
  
+  // explicit lengths are passed because the scheduler computes team sizes from them.
   int* qry_lens = (int*) malloc(num_seq*sizeof(int));
   int* ref_lens = (int*) malloc(num_seq*sizeof(int));
   for (int i = 0; i < num_seq; i++) {
@@ -68,6 +74,7 @@ int sw_multipod(int argc, char ** argv) {
     ref_lens[i] = seq_len;
   }
 
+  // this is the initial dram snapshot of the shared scheduler state.
   sched_state_t sched_init = {};
   sched_init.lock = 0;
   sched_init.launch_head = 0;
@@ -89,6 +96,7 @@ int sw_multipod(int argc, char ** argv) {
   eva_t d_sched;
   eva_t d_output;
 
+  // each pod gets its own copy of the inputs and shared scheduler state.
   hb_mc_pod_id_t pod;
   hb_mc_device_foreach_pod_id(&device, pod)
   {
@@ -96,6 +104,7 @@ int sw_multipod(int argc, char ** argv) {
     BSG_CUDA_CALL(hb_mc_device_set_default_pod(&device, pod));
     BSG_CUDA_CALL(hb_mc_device_program_init(&device, bin_path, ALLOC_NAME, 0));
 
+    // the scheduler lives in dram because every tile updates it with atomics.
     // Allocate memory on device;
     BSG_CUDA_CALL(hb_mc_device_malloc(&device, num_seq*seq_len*sizeof(uint8_t), &d_query));
     BSG_CUDA_CALL(hb_mc_device_malloc(&device, num_seq*seq_len*sizeof(uint8_t), &d_ref));
@@ -104,6 +113,7 @@ int sw_multipod(int argc, char ** argv) {
     BSG_CUDA_CALL(hb_mc_device_malloc(&device, sizeof(sched_state_t), &d_sched));
     BSG_CUDA_CALL(hb_mc_device_malloc(&device, num_seq*sizeof(int), &d_output));
    
+    // data transfer copies both the biological inputs and the scheduler seed state.
     // DMA transfer;
     printf("Transferring data: pod %d\n", pod);
     std::vector<hb_mc_dma_htod_t> htod_job;
@@ -119,6 +129,7 @@ int sw_multipod(int argc, char ** argv) {
     hb_mc_dimension_t grid_dim = { .x = 1, .y = 1};
     #define CUDA_ARGC 8
     uint32_t cuda_argv[CUDA_ARGC] = {
+      // the kernel interface is now explicit about lengths and scheduler state.
       d_query,
       d_ref,
       d_qry_lens,
@@ -143,6 +154,7 @@ int sw_multipod(int argc, char ** argv) {
   hb_mc_manycore_trace_disable((&device)->mc);
 
 
+  // validation still compares against a plain cpu smith-waterman implementation.
   // Read from device;
   int* actual_output = (int*) malloc(num_seq*sizeof(int));
 
@@ -161,6 +173,7 @@ int sw_multipod(int argc, char ** argv) {
     dtoh_job.push_back({d_output, actual_output, num_seq*sizeof(int)});
     BSG_CUDA_CALL(hb_mc_device_transfer_data_to_host(&device, dtoh_job.data(), dtoh_job.size()));
 
+    // this reference path keeps the old dense layout so correctness stays obvious.
     int H[seq_len+1][seq_len+1];
     int m[num_seq];
     int mj = 0, mk=0;
@@ -196,6 +209,7 @@ int sw_multipod(int argc, char ** argv) {
   }
 
 
+  // only the extra length arrays need explicit cleanup on the host side.
   // Finish;
   BSG_CUDA_CALL(hb_mc_device_finish(&device));
   free(qry_lens);

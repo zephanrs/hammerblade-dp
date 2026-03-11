@@ -22,8 +22,8 @@
 #define GAP       1
 
 // a band of width BAND_SIZE can overlap one extra chunk when the left edge is unaligned.
-static constexpr int kMaxActiveLocalChunks = 1 + ((BAND_SIZE + COL - 2) / (COL * CORES_PER_GROUP));
-static constexpr int kMaxActiveLocalCols = kMaxActiveLocalChunks * COL;
+#define MAX_ACTIVE_LOCAL_CHUNKS (1 + ((BAND_SIZE + COL - 2) / (COL * CORES_PER_GROUP)))
+#define MAX_ACTIVE_LOCAL_COLS (MAX_ACTIVE_LOCAL_CHUNKS * COL)
 
 // keep the mailbox payload compact because it moves at every handoff.
 inline int max(int a, int b) {
@@ -51,10 +51,10 @@ hb_mailbox_state_t<mailbox_t> mailboxes = {};
 
 // each chunk is one contiguous COL-wide group of reference columns.
 // a core only keeps the chunks that can be active for it at the same time.
-uint8_t refbuf[kMaxActiveLocalCols];
-int prev_dp[kMaxActiveLocalCols];
-int chunk_diag_seed[kMaxActiveLocalChunks];
-int slot_chunk_id[kMaxActiveLocalChunks];
+uint8_t refbuf[MAX_ACTIVE_LOCAL_COLS];
+int prev_dp[MAX_ACTIVE_LOCAL_COLS];
+int chunk_diag_seed[MAX_ACTIVE_LOCAL_CHUNKS];
+int slot_chunk_id[MAX_ACTIVE_LOCAL_CHUNKS];
 
 // this is the diagonal seed for the first active cell on the next row.
 int next_row_diag_seed = 0;
@@ -98,10 +98,9 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int pod_id)
   // each x-group handles an independent sequence stream.
   for (int s = GROUP_ID; s < NUM_SEQ; s += NUM_GROUPS) {
     const int seq_offset = SEQ_LEN * s;
-    const int total_chunks = (SEQ_LEN + COL - 1) / COL;
 
     // reset the small active window for this sequence.
-    for (int slot = 0; slot < kMaxActiveLocalChunks; slot++) {
+    for (int slot = 0; slot < MAX_ACTIVE_LOCAL_CHUNKS; slot++) {
       slot_chunk_id[slot] = -1;
       chunk_diag_seed[slot] = 0;
     }
@@ -137,7 +136,7 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int pod_id)
         const int chunk_stop = min(SEQ_LEN, min(end_col, chunk_start + width));
         const int offset_start = (global_chunk == start_chunk) ? (start_col - chunk_start) : 0;
         const int offset_stop = chunk_stop - chunk_start;
-        const int slot = local_chunk % kMaxActiveLocalChunks;
+        const int slot = local_chunk % MAX_ACTIVE_LOCAL_CHUNKS;
         const int base = slot * COL;
         int left;
         int diag;
@@ -215,7 +214,7 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int pod_id)
           } else if (CORE_ID == entering_core) {
             const mailbox_t incoming = receive_left_token(&mailboxes);
             const int local_chunk = (next_end_chunk - CORE_ID) / CORES_PER_GROUP;
-            const int slot = local_chunk % kMaxActiveLocalChunks;
+            const int slot = local_chunk % MAX_ACTIVE_LOCAL_CHUNKS;
             const int chunk_start = next_end_chunk * COL;
             const int width = min(COL, SEQ_LEN - chunk_start);
             const int base = slot * COL;
