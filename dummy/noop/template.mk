@@ -1,5 +1,6 @@
 include parameters.mk
 include app_path.mk
+HB_HAMMERBENCH_PATH ?= $(abspath $(APP_PATH)/../../../..)
 
 # Hardware;
 
