@@ -75,6 +75,30 @@ uint8_t refbuf[REF_CORE + 1];
 int H1[REF_CORE + 1];
 int H2[REF_CORE + 1];
 
+static inline __attribute__((always_inline))
+void load_ref_chunk_8(uint8_t *dst, const uint8_t *src)
+{
+  register uint8_t r0 = src[0];
+  register uint8_t r1 = src[1];
+  register uint8_t r2 = src[2];
+  register uint8_t r3 = src[3];
+  register uint8_t r4 = src[4];
+  register uint8_t r5 = src[5];
+  register uint8_t r6 = src[6];
+  register uint8_t r7 = src[7];
+
+  asm volatile("" ::: "memory");
+
+  dst[0] = r0;
+  dst[1] = r1;
+  dst[2] = r2;
+  dst[3] = r3;
+  dst[4] = r4;
+  dst[5] = r5;
+  dst[6] = r6;
+  dst[7] = r7;
+}
+
 // Kernel main;
 extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int pod_id)
 {
@@ -101,10 +125,16 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int pod_id)
       }
 
       int maxv = 0;
-      unrolled_load<uint8_t, REF_CORE>(
-        &refbuf[1],
-        &ref[SEQ_LEN * s + (CORE_ID * REF_CORE)]
-      );
+      uint8_t *ref_src = &ref[SEQ_LEN * s + (CORE_ID * REF_CORE)];
+      int k = 0;
+      // Issue the loads first into scalar temporaries so the manycore can
+      // overlap them before the stores back into local memory.
+      for (; k + 8 <= REF_CORE; k += 8) {
+        load_ref_chunk_8(&refbuf[k + 1], &ref_src[k]);
+      }
+      for (; k < REF_CORE; k++) {
+        refbuf[k + 1] = ref_src[k];
+      }
 
 #if PREFETCH
       register uint8_t next_qry asm("s4");
