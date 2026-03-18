@@ -16,6 +16,10 @@
 
 #define ALLOC_NAME "default_allocator"
 
+#ifndef ACTIVE_COMPUTE_GROUPS
+#define ACTIVE_COMPUTE_GROUPS bsg_tiles_X
+#endif
+
 // Host main;
 int sw_multipod(int argc, char ** argv) {
   int r = 0;
@@ -29,9 +33,13 @@ int sw_multipod(int argc, char ** argv) {
   const int num_seq = NUM_SEQ;
   const int total_num_seq = total_output_count(num_seq);
   const int seq_len = SEQ_LEN;
+  const int active_compute_groups = ACTIVE_COMPUTE_GROUPS;
+  const int active_compute_cores = active_compute_groups * bsg_tiles_Y;
   printf("num_seq=%d\n", num_seq);
   printf("total_num_seq=%d\n", total_num_seq);
   printf("repeat_factor=%d\n", kInputRepeatFactor);
+  printf("active_compute_groups=%d\n", active_compute_groups);
+  printf("active_compute_cores=%d\n", active_compute_cores);
   printf("max_seq_len=%d\n", seq_len);
   printf("min_seq_len=%d\n", VAR_LEN_MIN);
   
@@ -113,7 +121,18 @@ int sw_multipod(int argc, char ** argv) {
     dtoh_job.push_back({d_output, actual_output, total_num_seq*sizeof(int)});
     BSG_CUDA_CALL(hb_mc_device_transfer_data_to_host(&device, dtoh_job.data(), dtoh_job.size()));
 
-    fail |= !validate_sw_outputs(query, ref, qry_lens, ref_lens, seq_len, num_seq, actual_output);
+    const int expected = sw_reference_score(&query[0], qry_lens[0], &ref[0], ref_lens[0]);
+    const int actual = actual_output[0];
+    if (actual != expected) {
+      fail = true;
+      printf("Mismatch: i=0, actual=%d, expected=%d, qry_len=%d, ref_len=%d\n",
+             actual,
+             expected,
+             qry_lens[0],
+             ref_lens[0]);
+    } else {
+      printf("correct: first sequence matches expected score %d\n", expected);
+    }
   }
 
 

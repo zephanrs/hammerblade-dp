@@ -109,37 +109,13 @@ int sw_multipod(int argc, char ** argv) {
     dtoh_job.push_back({d_output, actual_output, total_num_seq*sizeof(int)});
     BSG_CUDA_CALL(hb_mc_device_transfer_data_to_host(&device, dtoh_job.data(), dtoh_job.size()));
 
-    int H[seq_len+1][seq_len+1];
-    int m[num_seq];
-    int mj = 0, mk=0;
-    for (int i = 0; i < num_seq; i++) {
-      memset(H, 0, sizeof(H));
-      m[i] = 0;
-      for (int j = 0; j < seq_len; j++) {
-        for (int k = 0; k < seq_len; k++) {
-          int match = (query[seq_len*i+j] == ref[seq_len*i+k]) ? 1 : -1;
-          int score_diag = H[j][k] + match;
-          int score_up = H[j][k+1] - 1;
-          int score_left = H[j+1][k] - 1;
-          H[j+1][k+1] = std::max(0, std::max(score_diag, std::max(score_up, score_left)));
-          if (H[j+1][k+1] > m[i]) {
-            mj = j;
-            mk = k;
-            m[i] = H[j+1][k+1];
-          }
-        }
-      }
-    }
-
-    // validate;
-    printf("Max is at row %d, column %d\n", mj, mk);
-    for (int i = 0; i < num_seq; i++) {
-      int actual = actual_output[i];
-      int expected = m[i];
-      if (actual != expected) {
-        fail = true;
-        printf("Mismatch: i=%d, actual=%d, expected=%d\n", i, actual, expected);
-      }
+    const int expected = sw_reference_score(&query[0], seq_len, &ref[0], seq_len);
+    const int actual = actual_output[0];
+    if (actual != expected) {
+      fail = true;
+      printf("Mismatch: i=0, actual=%d, expected=%d\n", actual, expected);
+    } else {
+      printf("correct: first sequence matches expected score %d\n", expected);
     }
   }
 

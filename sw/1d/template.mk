@@ -29,6 +29,9 @@ DEFINES += -DNUM_SEQ=$(num-seq) -DSEQ_LEN=$(seq-len)
 ifdef repeat
 DEFINES += -DINPUT_REPEAT_FACTOR=$(repeat)
 endif
+ifdef active-groups
+DEFINES += -DACTIVE_COMPUTE_GROUPS=$(active-groups)
+endif
 ifdef len-min
 DEFINES += -DVAR_LEN_MIN=$(len-min)
 endif
@@ -63,6 +66,9 @@ RISCV_CCPPFLAGS += -Dbsg_tiles_Y=$(TILE_GROUP_DIM_Y)
 RISCV_CCPPFLAGS += -DNUM_SEQ=$(num-seq) -DSEQ_LEN=$(seq-len)
 ifdef repeat
 RISCV_CCPPFLAGS += -DINPUT_REPEAT_FACTOR=$(repeat)
+endif
+ifdef active-groups
+RISCV_CCPPFLAGS += -DACTIVE_COMPUTE_GROUPS=$(active-groups)
 endif
 ifdef len-min
 RISCV_CCPPFLAGS += -DVAR_LEN_MIN=$(len-min)

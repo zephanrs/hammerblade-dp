@@ -24,6 +24,18 @@
 #define CORES_PER_GROUP bsg_tiles_X
 #endif
 
+#ifndef ACTIVE_COMPUTE_GROUPS
+#define ACTIVE_COMPUTE_GROUPS NUM_GROUPS
+#endif
+
+#if ACTIVE_COMPUTE_GROUPS < 1
+#error "ACTIVE_COMPUTE_GROUPS must be at least 1"
+#endif
+
+#if ACTIVE_COMPUTE_GROUPS > NUM_GROUPS
+#error "ACTIVE_COMPUTE_GROUPS cannot exceed NUM_GROUPS"
+#endif
+
 #ifndef PREFETCH
 #define PREFETCH 0
 #endif
@@ -79,7 +91,7 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int pod_id)
 #endif
 
   for (int repeat = 0; repeat < kInputRepeatFactor; repeat++) {
-    for (int s = GROUP_ID; s < NUM_SEQ; s += NUM_GROUPS) {
+    for (int s = GROUP_ID; (GROUP_ID < ACTIVE_COMPUTE_GROUPS) && (s < NUM_SEQ); s += ACTIVE_COMPUTE_GROUPS) {
       const int output_idx = (repeat * NUM_SEQ) + s;
       int *H_curr = H1;
       int *H_prev = H2;

@@ -23,6 +23,8 @@ $(addsuffix /parameters.mk,$(TESTS_DIRS)): %/parameters.mk:
 	@echo seq-len = $(call get-seq-len,$*) >> $@
 	@repeat="$(call get-repeat,$*)"; \
 	if [ -n "$$repeat" ]; then echo repeat = "$$repeat" >> $@; fi
+	@active_groups="$(call get-active-groups,$*)"; \
+	if [ -n "$$active_groups" ]; then echo active-groups = "$$active_groups" >> $@; fi
 	@len_min="$(call get-len-min,$*)"; \
 	if [ -n "$$len_min" ]; then echo len-min = "$$len_min" >> $@; fi
 	@len_seed="$(call get-len-seed,$*)"; \
