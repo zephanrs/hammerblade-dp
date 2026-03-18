@@ -21,6 +21,8 @@ $(addsuffix /parameters.mk,$(TESTS_DIRS)): %/parameters.mk:
 	@echo band-size = $(call get-band-size,$*) >> $@
 	@echo num-seq = $(call get-num-seq,$*) >> $@
 	@echo col = $(call get-col,$*) >> $@
+	@repeat="$(call get-repeat,$*)"; \
+	if [ -n "$$repeat" ]; then echo repeat = "$$repeat" >> $@; fi
 
 
 include $(HB_HAMMERBENCH_PATH)/mk/testbench_common.mk

@@ -7,6 +7,8 @@
 #include <bsg_manycore_regression.h>
 #include <bsg_manycore.h>
 #include <vector>
+#include "../../common/host_bench.hpp"
+#include "../common/test_input.hpp"
 
 #define ALLOC_NAME "default_allocator"
 
@@ -21,38 +23,6 @@
 #define BAND_SIZE 16
 #endif
 #endif
-
-static void read_seq_token(FILE* file, char* token, const char* filename) {
-  if (fscanf(file, "%63s", token) != 1) {
-    fprintf(stderr, "Failed to read sequence token from %s\n", filename);
-    exit(EXIT_FAILURE);
-  }
-}
-
-void read_seq(const char* filename, uint8_t* seq, int num_seq, int seq_len) {
-  FILE* file = fopen(filename, "r");
-  if (file == nullptr) {
-    fprintf(stderr, "Failed to open %s\n", filename);
-    exit(EXIT_FAILURE);
-  }
-
-  const int chunks_per_seq = (seq_len + 31) / 32;
-  for (int seq_idx = 0; seq_idx < num_seq; seq_idx++) {
-    const int seq_offset = seq_idx * seq_len;
-    for (int chunk_idx = 0; chunk_idx < chunks_per_seq; chunk_idx++) {
-      char temp_seq[64];
-      read_seq_token(file, temp_seq, filename); // skip line number;
-      read_seq_token(file, temp_seq, filename);
-
-      const int dst_offset = seq_offset + (chunk_idx * 32);
-      const int copy_len = std::min(32, seq_len - (chunk_idx * 32));
-      for (int j = 0; j < copy_len; j++) {
-        seq[dst_offset + j] = temp_seq[j];
-      }
-    }
-  }
-  fclose(file);
-}
 
 static int banded_sw_reference(const uint8_t* query, const uint8_t* ref, int seq_len) {
   std::vector<int> prev(seq_len, 0);
@@ -103,9 +73,12 @@ int sw_banded_multipod(int argc, char ** argv) {
   const char *ref_path = argv[3];
 
   // parameters;
-  const int num_seq = NUM_SEQ; // per pod;
+  const int num_seq = NUM_SEQ;
+  const int total_num_seq = total_output_count(num_seq);
   const int seq_len = SEQ_LEN;
   printf("num_seq=%d\n", num_seq);
+  printf("total_num_seq=%d\n", total_num_seq);
+  printf("repeat_factor=%d\n", kInputRepeatFactor);
   printf("seq_len=%d\n", seq_len);
   printf("band_size=%d\n", BAND_SIZE);
   printf("col=%d\n", COL);
@@ -114,8 +87,7 @@ int sw_banded_multipod(int argc, char ** argv) {
   // prepare inputs;
   std::vector<uint8_t> query(num_seq * seq_len);
   std::vector<uint8_t> ref(num_seq * seq_len);
-  read_seq(query_path, query.data(), num_seq, seq_len);
-  read_seq(ref_path, ref.data(), num_seq, seq_len);
+  prepare_fixed_length_inputs(query_path, ref_path, query.data(), ref.data(), num_seq, seq_len);
  
   // initialize device; 
   hb_mc_device_t device;
@@ -134,7 +106,7 @@ int sw_banded_multipod(int argc, char ** argv) {
     // Allocate memory on device;
     BSG_CUDA_CALL(hb_mc_device_malloc(&device, num_seq*(seq_len+1)*sizeof(uint8_t), &d_query));
     BSG_CUDA_CALL(hb_mc_device_malloc(&device, num_seq*(seq_len+1)*sizeof(uint8_t), &d_ref));
-    BSG_CUDA_CALL(hb_mc_device_malloc(&device, num_seq*sizeof(int), &d_output));
+    BSG_CUDA_CALL(hb_mc_device_malloc(&device, total_num_seq*sizeof(int), &d_output));
    
     // DMA transfer;
     printf("Transferring data: pod %d\n", pod);
@@ -158,13 +130,18 @@ int sw_banded_multipod(int argc, char ** argv) {
 
   // Launch pod;
   printf("Launching all pods\n");
+  timespec kernel_start = {};
+  timespec kernel_end = {};
   hb_mc_manycore_trace_enable((&device)->mc);
+  clock_gettime(CLOCK_MONOTONIC, &kernel_start);
   BSG_CUDA_CALL(hb_mc_device_pods_kernels_execute(&device));
+  clock_gettime(CLOCK_MONOTONIC, &kernel_end);
   hb_mc_manycore_trace_disable((&device)->mc);
+  print_kernel_launch_time(kernel_start, kernel_end);
 
 
   // Read from device;
-  std::vector<int> actual_output(num_seq);
+  std::vector<int> actual_output(total_num_seq);
   std::vector<int> expected_output(num_seq);
 
   bool fail = false;
@@ -177,7 +154,7 @@ int sw_banded_multipod(int argc, char ** argv) {
 
     // DMA transfer; device -> host;
     std::vector<hb_mc_dma_dtoh_t> dtoh_job;
-    dtoh_job.push_back({d_output, actual_output.data(), static_cast<uint32_t>(num_seq * sizeof(int))});
+    dtoh_job.push_back({d_output, actual_output.data(), static_cast<uint32_t>(total_num_seq * sizeof(int))});
     BSG_CUDA_CALL(hb_mc_device_transfer_data_to_host(&device, dtoh_job.data(), dtoh_job.size()));
 
     for (int i = 0; i < num_seq; i++) {

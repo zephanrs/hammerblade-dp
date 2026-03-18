@@ -5,7 +5,7 @@ include app_path.mk
 
 tile-x?=16
 tile-y?=8
-override BSG_MACHINE_PATH = $(REPLICANT_PATH)/machines/bigblade_pod_X1Y1_ruche_X16Y8_hbm_one_pseudo_channel
+# Real-hardware runs pick BSG_MACHINE_PATH from the cluster environment.
 include $(HB_HAMMERBENCH_PATH)/mk/environment.mk
 
 # number of pods participating in barrier;
@@ -25,6 +25,9 @@ DEFINES += -D_XOPEN_SOURCE=500 -D_BSD_SOURCE -D_DEFAULT_SOURCE
 DEFINES += -Dbsg_tiles_X=$(TILE_GROUP_DIM_X) -Dbsg_tiles_Y=$(TILE_GROUP_DIM_Y)
 DEFINES += -DNUM_POD_X=$(NUM_POD_X) # number of pods simulating now;
 DEFINES += -DNUM_SEQ=$(num-seq) -DSEQ_LEN=$(seq-len)
+ifdef repeat
+DEFINES += -DINPUT_REPEAT_FACTOR=$(repeat)
+endif
 ifdef len-min
 DEFINES += -DVAR_LEN_MIN=$(len-min)
 endif
@@ -57,6 +60,9 @@ RISCV_CCPPFLAGS += -DBSG_MACHINE_GLOBAL_Y=$(BSG_MACHINE_GLOBAL_Y)
 RISCV_CCPPFLAGS += -Dbsg_tiles_X=$(TILE_GROUP_DIM_X)
 RISCV_CCPPFLAGS += -Dbsg_tiles_Y=$(TILE_GROUP_DIM_Y)
 RISCV_CCPPFLAGS += -DNUM_SEQ=$(num-seq) -DSEQ_LEN=$(seq-len)
+ifdef repeat
+RISCV_CCPPFLAGS += -DINPUT_REPEAT_FACTOR=$(repeat)
+endif
 ifdef len-min
 RISCV_CCPPFLAGS += -DVAR_LEN_MIN=$(len-min)
 endif

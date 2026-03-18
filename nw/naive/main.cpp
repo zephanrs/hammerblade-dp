@@ -11,32 +11,10 @@
 #include <cstdint>
 #include <vector>
 #include <map>
+#include "../../common/host_bench.hpp"
+#include "../../sw/common/test_input.hpp"
 
 #define ALLOC_NAME "default_allocator"
-
-static void read_seq_token(FILE* file, char* token, const char* filename) {
-  if (fscanf(file, "%63s", token) != 1) {
-    fprintf(stderr, "Failed to read sequence token from %s\n", filename);
-    exit(EXIT_FAILURE);
-  }
-}
-
-void read_seq(const char* filename, uint8_t* seq, int num_seq) {
-  FILE* file = fopen(filename, "r");
-  if (file == nullptr) {
-    fprintf(stderr, "Failed to open %s\n", filename);
-    exit(EXIT_FAILURE);
-  }
-  for (int i = 0; i < num_seq; i++) {
-    char temp_seq[64];
-    read_seq_token(file, temp_seq, filename); // skip line number;
-    read_seq_token(file, temp_seq, filename);
-    for (int j = 0; j < 32; j++) {
-      seq[(32*i)+j] = temp_seq[j]; 
-    }
-  } 
-  fclose(file);
-}
 
 // Host main;
 int nw_naive_multipod(int argc, char ** argv) {
@@ -48,18 +26,19 @@ int nw_naive_multipod(int argc, char ** argv) {
   const char *ref_path = argv[3];
 
   // parameters;
-  int num_seq = NUM_SEQ; // per pod;
-  int seq_len = SEQ_LEN;
+  const int num_seq = NUM_SEQ;
+  const int total_num_seq = total_output_count(num_seq);
+  const int seq_len = SEQ_LEN;
   size_t matrix_size = (seq_len + 1) * (seq_len + 1);
   printf("num_seq=%d\n", num_seq);
+  printf("total_num_seq=%d\n", total_num_seq);
+  printf("repeat_factor=%d\n", kInputRepeatFactor);
   printf("seq_len=%d\n", seq_len);
   
   // prepare inputs;
   uint8_t* query = (uint8_t*) malloc(num_seq*seq_len*sizeof(uint8_t));
   uint8_t* ref = (uint8_t*) malloc(num_seq*seq_len*sizeof(uint8_t));
-  // hacky way to get longer sequences:
-  read_seq(query_path, query, num_seq * (seq_len / 32));
-  read_seq(ref_path, ref, num_seq * (seq_len / 32));
+  prepare_fixed_length_inputs(query_path, ref_path, query, ref, num_seq, seq_len);
  
   // initialize device; 
   hb_mc_device_t device;
@@ -79,7 +58,7 @@ int nw_naive_multipod(int argc, char ** argv) {
     // Allocate memory on device;
     BSG_CUDA_CALL(hb_mc_device_malloc(&device, num_seq*(seq_len+1)*sizeof(uint8_t), &d_query));
     BSG_CUDA_CALL(hb_mc_device_malloc(&device, num_seq*(seq_len+1)*sizeof(uint8_t), &d_ref));
-    BSG_CUDA_CALL(hb_mc_device_malloc(&device, num_seq*matrix_size*sizeof(int), &d_dp_matrix));
+    BSG_CUDA_CALL(hb_mc_device_malloc(&device, total_num_seq*matrix_size*sizeof(int), &d_dp_matrix));
    
     // DMA transfer;
     printf("Transferring data: pod %d\n", pod);
@@ -103,13 +82,18 @@ int nw_naive_multipod(int argc, char ** argv) {
 
   // Launch pod;
   printf("Launching all pods\n");
+  timespec kernel_start = {};
+  timespec kernel_end = {};
   hb_mc_manycore_trace_enable((&device)->mc);
+  clock_gettime(CLOCK_MONOTONIC, &kernel_start);
   BSG_CUDA_CALL(hb_mc_device_pods_kernels_execute(&device));
+  clock_gettime(CLOCK_MONOTONIC, &kernel_end);
   hb_mc_manycore_trace_disable((&device)->mc);
+  print_kernel_launch_time(kernel_start, kernel_end);
 
 
   // Read from device;
-  int* actual_dp_matrix = (int*) malloc(num_seq*matrix_size*sizeof(int));
+  int* actual_dp_matrix = (int*) malloc(total_num_seq*matrix_size*sizeof(int));
 
   bool fail = false;
   hb_mc_device_foreach_pod_id(&device, pod) {
@@ -117,13 +101,13 @@ int nw_naive_multipod(int argc, char ** argv) {
     BSG_CUDA_CALL(hb_mc_device_set_default_pod(&device, pod));
 
     // clear buf;
-    for (size_t i = 0; i < (size_t)num_seq * matrix_size; i++) {
+    for (size_t i = 0; i < (size_t)total_num_seq * matrix_size; i++) {
       actual_dp_matrix[i] = 0;
     }
 
     // DMA transfer; device -> host;
     std::vector<hb_mc_dma_dtoh_t> dtoh_job;
-    dtoh_job.push_back({d_dp_matrix, actual_dp_matrix, num_seq*matrix_size*sizeof(int)});
+    dtoh_job.push_back({d_dp_matrix, actual_dp_matrix, total_num_seq*matrix_size*sizeof(int)});
     BSG_CUDA_CALL(hb_mc_device_transfer_data_to_host(&device, dtoh_job.data(), dtoh_job.size()));
 
     int H[seq_len+1][seq_len+1];

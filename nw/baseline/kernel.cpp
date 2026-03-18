@@ -1,6 +1,7 @@
 #include <bsg_manycore.h>
 #include <bsg_cuda_lite_barrier.h>
 #include "bsg_barrier_multipod.h"
+#include "../../common/repeat_config.hpp"
 #include "unroll.hpp"
 #include <cstdint>
 
@@ -48,8 +49,9 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int pod_id)
   mailbox_t *next_mailbox = (mailbox_t *)bsg_remote_ptr(__bsg_x, __bsg_y + 1, &mailbox);
   volatile int *prev_next_is_ready = (volatile int *)bsg_remote_ptr(__bsg_x, __bsg_y - 1, (void*)&next_is_ready);
 
-  // Each group processes a set of sequences
-  for (int s = GROUP_ID; s < NUM_SEQ; s += NUM_GROUPS) {
+  for (int repeat = 0; repeat < kInputRepeatFactor; repeat++) {
+    for (int s = GROUP_ID; s < NUM_SEQ; s += NUM_GROUPS) {
+      const int output_idx = (repeat * NUM_SEQ) + s;
     
     // DP row buffers
     int *H_curr = H1;
@@ -116,9 +118,9 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int pod_id)
       H_prev = tmp;
     }
 
-    if (CORE_ID == CORES_PER_GROUP - 1) {
-      // write result
-      output[s] = H_prev[REF_CORE];
+      if (CORE_ID == CORES_PER_GROUP - 1) {
+        output[output_idx] = H_prev[REF_CORE];
+      }
     }
   }
 

@@ -1,6 +1,7 @@
 #include <bsg_manycore.h>
 #include <bsg_cuda_lite_barrier.h>
 #include "bsg_barrier_multipod.h"
+#include "../../common/repeat_config.hpp"
 #include "../../nw/mailbox.hpp"
 #include <cstdint>
 
@@ -96,8 +97,10 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int pod_id)
   bsg_cuda_print_stat_kernel_start();
 
   // each x-group handles an independent sequence stream.
-  for (int s = GROUP_ID; s < NUM_SEQ; s += NUM_GROUPS) {
-    const int seq_offset = SEQ_LEN * s;
+  for (int repeat = 0; repeat < kInputRepeatFactor; repeat++) {
+    for (int s = GROUP_ID; s < NUM_SEQ; s += NUM_GROUPS) {
+      const int output_idx = (repeat * NUM_SEQ) + s;
+      const int seq_offset = SEQ_LEN * s;
 
     // reset the small active window for this sequence.
     for (int slot = 0; slot < MAX_ACTIVE_LOCAL_CHUNKS; slot++) {
@@ -263,8 +266,9 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int pod_id)
       }
     }
 
-    if (CORE_ID == (CORES_PER_GROUP - 1)) {
-      output[s] = reduced_max;
+      if (CORE_ID == (CORES_PER_GROUP - 1)) {
+        output[output_idx] = reduced_max;
+      }
     }
   }
 

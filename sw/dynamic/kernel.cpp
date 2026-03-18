@@ -2,6 +2,7 @@
 #include <bsg_manycore_atomic.h>
 #include <bsg_cuda_lite_barrier.h>
 #include "bsg_barrier_multipod.h"
+#include "../../common/repeat_config.hpp"
 #include "unroll.hpp"
 #include <cstdint>
 
@@ -34,7 +35,8 @@ inline int max(int a, int b, int c, int d) {
 struct seq_info_t {
   int qry_len;
   int ref_len;
-  int seq_id;
+  int input_id;
+  int output_id;
 };
 
 // inter-core mailbox
@@ -84,9 +86,11 @@ extern "C" int kernel(
       if (s >= num_seq) {
         info_curr.qry_len = -1;
       } else {
-        info_curr.seq_id  = s;
-        info_curr.ref_len = ref_lens[s];
-        info_curr.qry_len = qry_lens[s];
+        const int input_id = s % NUM_SEQ;
+        info_curr.input_id = input_id;
+        info_curr.output_id = s;
+        info_curr.ref_len = ref_lens[input_id];
+        info_curr.qry_len = qry_lens[input_id];
       }
     } else {
       // wait for previous core to forward seq info
@@ -100,7 +104,8 @@ extern "C" int kernel(
 
     // forward to next core
     if (CORE_ID < CORES_PER_GROUP - 1) {
-      next_info->seq_id  = info_curr.seq_id;
+      next_info->input_id = info_curr.input_id;
+      next_info->output_id = info_curr.output_id;
       next_info->ref_len = info_curr.ref_len;
       asm volatile("" ::: "memory");
       next_info->qry_len = info_curr.qry_len; // write last
@@ -110,7 +115,8 @@ extern "C" int kernel(
     if (info_curr.qry_len < 0) break;
 
     // compute ref_core for this sequence
-    int s        = info_curr.seq_id;
+    int input_id = info_curr.input_id;
+    int output_id = info_curr.output_id;
     int qry_len  = info_curr.qry_len;
     int ref_len  = info_curr.ref_len;
     int ref_core = ref_len / CORES_PER_GROUP;
@@ -126,7 +132,7 @@ extern "C" int kernel(
     int maxv = 0;
 
     // load reference chunk (batches of 8, then rest)
-    uint8_t *ref_src = &ref[ref_len * s + (CORE_ID * ref_core)];
+    uint8_t *ref_src = &ref[ref_len * input_id + (CORE_ID * ref_core)];
     int k = 0;
     for (; k + 8 <= ref_core; k += 8) {
       unrolled_load<uint8_t, 8>(&refbuf[k + 1], &ref_src[k]);
@@ -140,7 +146,7 @@ extern "C" int kernel(
       uint8_t qry_char;
 
       if (CORE_ID == 0) {
-        qry_char = qry[qry_len * s + i];
+        qry_char = qry[qry_len * input_id + i];
         H_curr[0] = 0;
       } else {
         // wait for core to the left to write
@@ -199,7 +205,7 @@ extern "C" int kernel(
 
     if (CORE_ID == CORES_PER_GROUP - 1) {
       // write result
-      output[s] = maxv;
+      output[output_id] = maxv;
     }
   }
 

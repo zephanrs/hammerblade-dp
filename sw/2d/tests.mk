@@ -4,3 +4,5 @@ TESTS += $(call test-name,32,2)
 TESTS += $(call test-name,32,8)
 TESTS += $(call test-name,32,512)
 TESTS += $(call test-name,128,32)
+TESTS += seq-len_256__num-seq_16__repeat_16
+TESTS += seq-len_512__num-seq_8__repeat_16

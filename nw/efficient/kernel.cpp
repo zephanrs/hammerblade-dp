@@ -1,6 +1,7 @@
 #include <bsg_manycore.h>
 #include <bsg_cuda_lite_barrier.h>
 #include "bsg_barrier_multipod.h"
+#include "../../common/repeat_config.hpp"
 #include "../mailbox.hpp"
 #include "unroll.hpp"
 #include <cstdint>
@@ -428,72 +429,73 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int* path, int po
   bsg_barrier_tile_group_sync();
   bsg_cuda_print_stat_kernel_start();
 
-  // Each group processes a set of sequences
-  for (int seq_id = group_id; seq_id < NUM_SEQ; seq_id += bsg_tiles_X) {
-    unrolled_load<uint8_t, REF_CORE>(
-      &ref_segment[1],
-      &ref[SEQ_LEN * seq_id + (core_id * REF_CORE)]
-    );
-
-    for (int col = 0; col < REF_CORE; col++) {
-      split_points[col] = -1;
-    }
-
-    int query_low = 0;
-    int query_high = SEQ_LEN;
-
-    for (int active_cores = 4; active_cores > 1; active_cores >>= 1) {
-      int split_idx;
-      int direction = 1;
-      int active_core_id = core_id & (active_cores - 1);
-
-      if (active_cores & core_id) {
-        direction = -1;
-        active_core_id ^= (active_cores - 1);
-      }
-
-      split_idx = parallel_fill(
-        &qry[seq_id * SEQ_LEN],
-        query_low,
-        query_high,
-        direction,
-        active_core_id,
-        active_cores
+  for (int repeat = 0; repeat < kInputRepeatFactor; repeat++) {
+    for (int seq_id = group_id; seq_id < NUM_SEQ; seq_id += bsg_tiles_X) {
+      const int output_idx = (repeat * NUM_SEQ) + seq_id;
+      unrolled_load<uint8_t, REF_CORE>(
+        &ref_segment[1],
+        &ref[SEQ_LEN * seq_id + (core_id * REF_CORE)]
       );
 
-      if (core_id == 0 && active_cores == 4) {
-        output[seq_id] = peek_right(&mailboxes).max;
+      for (int col = 0; col < REF_CORE; col++) {
+        split_points[col] = -1;
       }
 
-      if (active_cores & core_id) {
-        query_low = split_idx;
-      } else { 
-        query_high = split_idx;
+      int query_low = 0;
+      int query_high = SEQ_LEN;
+
+      for (int active_cores = 4; active_cores > 1; active_cores >>= 1) {
+        int direction = 1;
+        int active_core_id = core_id & (active_cores - 1);
+
+        if (active_cores & core_id) {
+          direction = -1;
+          active_core_id ^= (active_cores - 1);
+        }
+
+        const int split_idx = parallel_fill(
+          &qry[seq_id * SEQ_LEN],
+          query_low,
+          query_high,
+          direction,
+          active_core_id,
+          active_cores
+        );
+
+        if (core_id == 0 && active_cores == 4) {
+          output[output_idx] = peek_right(&mailboxes).max;
+        }
+
+        if (active_cores & core_id) {
+          query_low = split_idx;
+        } else {
+          query_high = split_idx;
+        }
       }
-    }
 
-    {
-      const int direction = (core_id & 1) ? -1 : 1;
-      const int split_idx = parallel_fill(
-        &qry[seq_id * SEQ_LEN],
-        query_low,
-        query_high,
-        direction,
-        0,
-        1
-      );
+      {
+        const int direction = (core_id & 1) ? -1 : 1;
+        const int split_idx = parallel_fill(
+          &qry[seq_id * SEQ_LEN],
+          query_low,
+          query_high,
+          direction,
+          0,
+          1
+        );
 
-      if (direction == -1) {
-        query_low = split_idx;
-      } else {
-        query_high = split_idx;
+        if (direction == -1) {
+          query_low = split_idx;
+        } else {
+          query_high = split_idx;
+        }
       }
-    }
 
-    local_fill(&qry[seq_id * SEQ_LEN], query_low, query_high, 0, REF_CORE);
+      local_fill(&qry[seq_id * SEQ_LEN], query_low, query_high, 0, REF_CORE);
 
-    for (int col = 0; col < REF_CORE; col++) {
-      path[(seq_id * SEQ_LEN) + (core_id * REF_CORE) + col] = split_points[col];
+      for (int col = 0; col < REF_CORE; col++) {
+        path[(output_idx * SEQ_LEN) + (core_id * REF_CORE) + col] = split_points[col];
+      }
     }
   }
 

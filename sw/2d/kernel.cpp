@@ -1,6 +1,7 @@
 #include <bsg_manycore.h>
 #include <bsg_cuda_lite_barrier.h>
 #include "bsg_barrier_multipod.h"
+#include "../../common/repeat_config.hpp"
 #include "unroll.hpp"
 #include <cstdint>
 
@@ -75,122 +76,101 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int pod_id)
   init_buffer(&buffers[0], __bsg_x, __bsg_y);
   init_buffer(&buffers[1], __bsg_x, __bsg_y);
 
-  for (int i = 0; i < NUM_SEQ; i++) {
-    curr = &buffers[i & 0x1];
+  for (int repeat = 0; repeat < kInputRepeatFactor; repeat++) {
+    for (int i = 0; i < NUM_SEQ; i++) {
+      const int output_idx = (repeat * NUM_SEQ) + i;
+      curr = &buffers[output_idx & 0x1];
 
-    // ensure buffers are ready
-    int rdy = bsg_lr(&(curr->right_done));
-    if (!rdy) bsg_lr_aq(&(curr->right_done));
-    asm volatile("" ::: "memory");
-
-    rdy = bsg_lr(&(curr->bottom_done));
-    if (!rdy) bsg_lr_aq(&(curr->bottom_done));
-    asm volatile("" ::: "memory");
-
-    if (!__bsg_x) {
-      // load query
-      unrolled_load<uint8_t, QRY_CORE>(
-        curr->qrybuf,
-        &qry[SEQ_LEN * i + (__bsg_y * QRY_CORE)]
-      );
-    }
-
-    if (!__bsg_y) {
-      // load reference
-      unrolled_load<uint8_t, REF_CORE>(
-        curr->refbuf,
-        &ref[SEQ_LEN * i + (__bsg_x * REF_CORE)]
-      );
-    }
-
-    int maxv = 0;
-
-    if (__bsg_x) {
-      // wait for core to the left to write
-      int rdy = bsg_lr(&(curr->max_left));
-      if (rdy == -1) bsg_lr_aq(&(curr->max_left));
+      int rdy = bsg_lr(&(curr->right_done));
+      if (!rdy) {
+        bsg_lr_aq(&(curr->right_done));
+      }
       asm volatile("" ::: "memory");
 
-      // update maximum value
-      maxv = max(maxv, curr->max_left);
-      curr->max_left = -1;
-
-      // copy over query
-      unrolled_load<uint8_t, QRY_CORE>(
-        curr->qrybuf,
-        curr->next_qry
-      );
-
-      // copy over dp table
-      unrolled_load<int, QRY_CORE+1, REF_CORE+1>(
-        &(curr->dp[0][0]),
-        &(curr->left_dp[REF_CORE])
-      );
-
-      // indicate we are done with the buffer
-      *(curr->left_done) = 1;
-    }
-    
-    if (__bsg_y) {
-      // wait for core above to write
-      int rdy = bsg_lr(&(curr->max_top));
-      if (rdy == -1) bsg_lr_aq(&(curr->max_top));
+      rdy = bsg_lr(&(curr->bottom_done));
+      if (!rdy) {
+        bsg_lr_aq(&(curr->bottom_done));
+      }
       asm volatile("" ::: "memory");
 
-      // update maximum value
-      maxv = max(maxv, curr->max_top);
-      curr->max_top = -1;
+      if (!__bsg_x) {
+        unrolled_load<uint8_t, QRY_CORE>(
+          curr->qrybuf,
+          &qry[SEQ_LEN * i + (__bsg_y * QRY_CORE)]
+        );
+      }
 
-      // copy over reference
-      unrolled_load<uint8_t, REF_CORE>(
-        curr->refbuf,
-        curr->next_ref
-      );
+      if (!__bsg_y) {
+        unrolled_load<uint8_t, REF_CORE>(
+          curr->refbuf,
+          &ref[SEQ_LEN * i + (__bsg_x * REF_CORE)]
+        );
+      }
 
-      // copy over dp table
-      unrolled_load<int, REF_CORE+1>(
-        &(curr->dp[0][0]),
-        &(curr->top_dp[QRY_CORE * (REF_CORE + 1)])
-      );
+      int maxv = 0;
 
-      // indicate we are done with the buffer
-      *(curr->top_done) = 1;
-    }
-    
-    // do dp calculation
-    for (int j = 1; j <= QRY_CORE; j++) {
-      for (int k = 1; k <= REF_CORE; k++) {
-        int match      = (curr->qrybuf[j-1] == curr->refbuf[k-1]) ? MATCH : MISMATCH;
-
-        int score_diag = curr->dp[j-1][k-1] + match;
-        int score_up   = curr->dp[j-1][k]   - GAP;
-        int score_left = curr->dp[j][k-1]   - GAP;
-
-        int val = max(0, score_diag, score_up, score_left);
-
-        if (val > maxv) {
-          maxv = val;
+      if (__bsg_x) {
+        int rdy_left = bsg_lr(&(curr->max_left));
+        if (rdy_left == -1) {
+          bsg_lr_aq(&(curr->max_left));
         }
+        asm volatile("" ::: "memory");
 
-        curr->dp[j][k] = val;
+        maxv = max(maxv, curr->max_left);
+        curr->max_left = -1;
+        unrolled_load<uint8_t, QRY_CORE>(curr->qrybuf, curr->next_qry);
+        unrolled_load<int, QRY_CORE+1, REF_CORE+1>(
+          &(curr->dp[0][0]),
+          &(curr->left_dp[REF_CORE])
+        );
+        *(curr->left_done) = 1;
+      }
+
+      if (__bsg_y) {
+        int rdy_top = bsg_lr(&(curr->max_top));
+        if (rdy_top == -1) {
+          bsg_lr_aq(&(curr->max_top));
+        }
+        asm volatile("" ::: "memory");
+
+        maxv = max(maxv, curr->max_top);
+        curr->max_top = -1;
+        unrolled_load<uint8_t, REF_CORE>(curr->refbuf, curr->next_ref);
+        unrolled_load<int, REF_CORE+1>(
+          &(curr->dp[0][0]),
+          &(curr->top_dp[QRY_CORE * (REF_CORE + 1)])
+        );
+        *(curr->top_done) = 1;
+      }
+
+      for (int j = 1; j <= QRY_CORE; j++) {
+        for (int k = 1; k <= REF_CORE; k++) {
+          int match = (curr->qrybuf[j-1] == curr->refbuf[k-1]) ? MATCH : MISMATCH;
+          int score_diag = curr->dp[j-1][k-1] + match;
+          int score_up = curr->dp[j-1][k] - GAP;
+          int score_left = curr->dp[j][k-1] - GAP;
+          int val = max(0, score_diag, score_up, score_left);
+          if (val > maxv) {
+            maxv = val;
+          }
+          curr->dp[j][k] = val;
+        }
+      }
+
+      if (__bsg_x < (bsg_tiles_X - 1)) {
+        curr->right_done = 0;
+        *(curr->right_max) = maxv;
+      }
+
+      if (__bsg_y < (bsg_tiles_Y - 1)) {
+        curr->bottom_done = 0;
+        *(curr->bottom_max) = maxv;
+      }
+
+      if ((__bsg_x == (bsg_tiles_X - 1)) && (__bsg_y == (bsg_tiles_Y - 1))) {
+        output[output_idx] = maxv;
       }
     }
-    
-    if (__bsg_x < (bsg_tiles_X - 1)) {
-      // activate right core (and transfer max)
-      curr->right_done   = 0;
-      *(curr->right_max) = maxv;
-    }
-
-    if (__bsg_y < (bsg_tiles_Y - 1)) {
-      // activate bottom core (and transfer max)
-      curr->bottom_done   = 0;
-      *(curr->bottom_max) = maxv;
-    }
-
-    // write result
-    if ((__bsg_x == (bsg_tiles_X - 1)) && (__bsg_y == (bsg_tiles_Y - 1)))
-      output[i] = maxv;
   }
   
   // kernel end;

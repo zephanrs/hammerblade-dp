@@ -80,6 +80,16 @@ inline void fill_dense_sequences(const char* filename,
   fclose(file);
 }
 
+inline void prepare_fixed_length_inputs(const char* query_path,
+                                        const char* ref_path,
+                                        uint8_t* query,
+                                        uint8_t* ref,
+                                        int num_seq,
+                                        int max_seq_len) {
+  fill_dense_sequences(query_path, query, num_seq, max_seq_len);
+  fill_dense_sequences(ref_path, ref, num_seq, max_seq_len);
+}
+
 inline void fill_lengths(int* lens,
                          int num_seq,
                          int min_len,

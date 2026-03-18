@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <vector>
 #include <map>
+#include "../../common/host_bench.hpp"
 #include "../common/test_input.hpp"
 
 #define ALLOC_NAME "default_allocator"
@@ -25,9 +26,12 @@ int sw_multipod(int argc, char ** argv) {
   const char *ref_path = argv[3];
 
   // parameters;
-  int num_seq = NUM_SEQ; // per pod;
-  int seq_len = SEQ_LEN;
+  const int num_seq = NUM_SEQ;
+  const int total_num_seq = total_output_count(num_seq);
+  const int seq_len = SEQ_LEN;
   printf("num_seq=%d\n", num_seq);
+  printf("total_num_seq=%d\n", total_num_seq);
+  printf("repeat_factor=%d\n", kInputRepeatFactor);
   printf("max_seq_len=%d\n", seq_len);
   printf("min_seq_len=%d\n", VAR_LEN_MIN);
   
@@ -57,7 +61,7 @@ int sw_multipod(int argc, char ** argv) {
     // Allocate memory on device;
     BSG_CUDA_CALL(hb_mc_device_malloc(&device, num_seq*(seq_len+1)*sizeof(uint8_t), &d_query));
     BSG_CUDA_CALL(hb_mc_device_malloc(&device, num_seq*(seq_len+1)*sizeof(uint8_t), &d_ref));
-    BSG_CUDA_CALL(hb_mc_device_malloc(&device, num_seq*sizeof(int), &d_output));
+    BSG_CUDA_CALL(hb_mc_device_malloc(&device, total_num_seq*sizeof(int), &d_output));
    
     // DMA transfer;
     printf("Transferring data: pod %d\n", pod);
@@ -81,13 +85,18 @@ int sw_multipod(int argc, char ** argv) {
 
   // Launch pod;
   printf("Launching all pods\n");
+  timespec kernel_start = {};
+  timespec kernel_end = {};
   hb_mc_manycore_trace_enable((&device)->mc);
+  clock_gettime(CLOCK_MONOTONIC, &kernel_start);
   BSG_CUDA_CALL(hb_mc_device_pods_kernels_execute(&device));
+  clock_gettime(CLOCK_MONOTONIC, &kernel_end);
   hb_mc_manycore_trace_disable((&device)->mc);
+  print_kernel_launch_time(kernel_start, kernel_end);
 
 
   // Read from device;
-  int* actual_output = (int*) malloc(num_seq*sizeof(int));
+  int* actual_output = (int*) malloc(total_num_seq*sizeof(int));
 
   bool fail = false;
   hb_mc_device_foreach_pod_id(&device, pod) {
@@ -95,13 +104,13 @@ int sw_multipod(int argc, char ** argv) {
     BSG_CUDA_CALL(hb_mc_device_set_default_pod(&device, pod));
 
     // clear buf;
-    for (int i = 0; i < num_seq; i++) {
+    for (int i = 0; i < total_num_seq; i++) {
       actual_output[i] = 0;
     }
 
     // DMA transfer; device -> host;
     std::vector<hb_mc_dma_dtoh_t> dtoh_job;
-    dtoh_job.push_back({d_output, actual_output, num_seq*sizeof(int)});
+    dtoh_job.push_back({d_output, actual_output, total_num_seq*sizeof(int)});
     BSG_CUDA_CALL(hb_mc_device_transfer_data_to_host(&device, dtoh_job.data(), dtoh_job.size()));
 
     fail |= !validate_sw_outputs(query, ref, qry_lens, ref_lens, seq_len, num_seq, actual_output);

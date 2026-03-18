@@ -16,3 +16,5 @@ TESTS += $(call test-name,$(FIXED_SEQ_LEN),$(FIXED_BAND),$(FIXED_NUM_SEQ),1)
 TESTS += $(call test-name,$(FIXED_SEQ_LEN),$(FIXED_BAND),$(FIXED_NUM_SEQ),2)
 TESTS += $(call test-name,$(FIXED_SEQ_LEN),$(FIXED_BAND),$(FIXED_NUM_SEQ),8)
 TESTS += $(call test-name,$(FIXED_SEQ_LEN),$(FIXED_BAND),$(FIXED_NUM_SEQ),16)
+TESTS += seq-len_512__band-size_64__num-seq_32__col_4__repeat_16
+TESTS += seq-len_1024__band-size_64__num-seq_16__col_4__repeat_16

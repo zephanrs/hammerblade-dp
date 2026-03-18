@@ -19,6 +19,8 @@ $(addsuffix /parameters.mk,$(TESTS_DIRS)): %/parameters.mk:
 	@echo test-name  = $* >> $@
 	@echo num-seq = $(call get-num-seq,$*) >> $@
 	@echo seq-len = $(call get-seq-len,$*) >> $@
+	@repeat="$(call get-repeat,$*)"; \
+	if [ -n "$$repeat" ]; then echo repeat = "$$repeat" >> $@; fi
 	@len_min="$(call get-len-min,$*)"; \
 	if [ -n "$$len_min" ]; then echo len-min = "$$len_min" >> $@; fi
 	@len_seed="$(call get-len-seed,$*)"; \

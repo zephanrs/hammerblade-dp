@@ -5,3 +5,6 @@ TESTS += $(call test-name,64,64)
 TESTS += $(call test-name,128,64)
 TESTS += $(call test-name,256,64)
 TESTS += seq-len_512__num-seq_64__len-min_64__len-seed_1__len-quantum_8
+TESTS += seq-len_512__num-seq_32__repeat_32
+TESTS += seq-len_1024__num-seq_16__repeat_32
+TESTS += seq-len_2048__num-seq_8__repeat_16
