@@ -2,7 +2,10 @@
 all: generate
 
 include app_path.mk
-HB_HAMMERBENCH_PATH ?= $(abspath $(APP_PATH)/../../../..)
+# radix_sort sits one level shallower than sw/1d, nw/*, dummy/roofline
+# (which are at programs/<family>/<app>), so the walk to hb_hammerbench
+# is 3 levels up — not 4. template.mk already has this right.
+HB_HAMMERBENCH_PATH ?= $(abspath $(APP_PATH)/../../..)
 
 # call to generate a test name
 test-name = radix_sort_$(1)

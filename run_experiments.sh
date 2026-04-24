@@ -283,10 +283,14 @@ for app in "${RUN_APPS[@]}"; do
   while IFS= read -r pfile; do
     rm -rf "$(dirname "$pfile")"
   done < <(find "$app_dir" -maxdepth 2 -name "parameters.mk" 2>/dev/null)
-  if ! make -C "$app_dir" generate > /dev/null 2>&1; then
-    log_err "  'make generate' failed for $app — check $app_dir/Makefile"
+  gen_log=$(mktemp)
+  if ! make -C "$app_dir" generate > "$gen_log" 2>&1; then
+    log_err "  'make generate' failed for $app — output below:"
+    tail -20 "$gen_log" | while IFS= read -r line; do printf "         %s\n" "$line"; done
+    rm -f "$gen_log"
     continue
   fi
+  rm -f "$gen_log"
 
   # Collect test directories
   mapfile -t test_dirs < <(find "$app_dir" -maxdepth 2 -name "parameters.mk" -exec dirname {} \; | sort)
