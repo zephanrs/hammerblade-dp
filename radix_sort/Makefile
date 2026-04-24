@@ -1,6 +1,9 @@
 .PHONY: all
 all: generate
 
+include app_path.mk
+HB_HAMMERBENCH_PATH ?= $(abspath $(APP_PATH)/../../../..)
+
 # call to generate a test name
 test-name = radix_sort_$(1)
 
@@ -21,3 +24,6 @@ $(addsuffix /parameters.mk,$(TESTS_DIRS)): %/parameters.mk:
 	@echo vector-size = $(call get-vector-size,$*) >> $@
 
 include $(HB_HAMMERBENCH_PATH)/mk/testbench_common.mk
+
+clean:
+	rm -rf radix_sort_*
