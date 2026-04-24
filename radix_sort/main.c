@@ -4,6 +4,7 @@
 #include <bsg_manycore_regression.h>
 #include <bsg_manycore_tile.h>
 #include <math.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
