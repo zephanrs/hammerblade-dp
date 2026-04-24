@@ -39,7 +39,7 @@ int sw_multipod(int argc, char ** argv) {
   printf("seq_len=%d\n", seq_len);
   
   // prepare inputs;
-  const int num_pods  = NUM_POD_X;
+  const int num_pods  = NUM_POD_X * NUM_POD_Y;   // total pods (X*Y grid)
   const int host_seq  = POD_UNIQUE_DATA ? num_pods * num_seq : num_seq;
   printf("pod_unique_data=%d\n", POD_UNIQUE_DATA);
   uint8_t* query = (uint8_t*) malloc(host_seq*seq_len*sizeof(uint8_t));
@@ -97,6 +97,7 @@ int sw_multipod(int argc, char ** argv) {
   clock_gettime(CLOCK_MONOTONIC, &kernel_end);
   hb_mc_manycore_trace_disable((&device)->mc);
   print_kernel_launch_time(kernel_start, kernel_end);
+  fflush(stdout);
 
 
   // Read from device;

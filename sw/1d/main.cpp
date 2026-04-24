@@ -44,7 +44,7 @@ int sw_multipod(int argc, char ** argv) {
   const int num_seq = NUM_SEQ;
   const int total_num_seq = total_output_count(num_seq);
   const int seq_len = SEQ_LEN;
-  const int num_pods = NUM_POD_X;
+  const int num_pods = NUM_POD_X * NUM_POD_Y;   // total pods (X*Y grid)
   const int cores_per_group = CORES_PER_GROUP;
   const int num_groups = (bsg_tiles_X * bsg_tiles_Y) / cores_per_group;
   printf("num_seq=%d\n", num_seq);
@@ -119,6 +119,7 @@ int sw_multipod(int argc, char ** argv) {
   clock_gettime(CLOCK_MONOTONIC, &kernel_end);
   hb_mc_manycore_trace_disable((&device)->mc);
   print_kernel_launch_time(kernel_start, kernel_end);
+  fflush(stdout);
 
 
   // Read from device;

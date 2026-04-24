@@ -11,7 +11,7 @@ include $(HB_HAMMERBENCH_PATH)/mk/environment.mk
 
 # number of pods participating in barrier;
 NUM_POD_X=$(BSG_MACHINE_PODS_X)
-NUM_POD_Y=$(BSG_MACHINE_PODS_X)
+NUM_POD_Y=$(BSG_MACHINE_PODS_Y)
 # Tile group DIM
 TILE_GROUP_DIM_X ?= $(tile-x)
 TILE_GROUP_DIM_Y ?= $(tile-y)
@@ -24,7 +24,7 @@ TEST_SOURCES = main.cpp
 
 DEFINES += -D_XOPEN_SOURCE=500 -D_BSD_SOURCE -D_DEFAULT_SOURCE
 DEFINES += -Dbsg_tiles_X=$(TILE_GROUP_DIM_X) -Dbsg_tiles_Y=$(TILE_GROUP_DIM_Y)
-DEFINES += -DNUM_POD_X=$(NUM_POD_X) # number of pods simulating now;
+DEFINES += -DNUM_POD_X=$(NUM_POD_X) -DNUM_POD_Y=$(NUM_POD_Y)
 DEFINES += -DNUM_SEQ=$(num-seq) -DSEQ_LEN=$(seq-len)
 ifdef repeat
 DEFINES += -DINPUT_REPEAT_FACTOR=$(repeat)

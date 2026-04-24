@@ -23,6 +23,9 @@
 
 set -uo pipefail
 
+# Stop everything cleanly on Ctrl-C (kill the whole process group, including tee).
+trap 'printf "\n[$(date +%H:%M:%S)] Interrupted — stopping all runs.\n"; kill 0; exit 130' INT TERM
+
 # ─── Configuration ────────────────────────────────────────────────────────────
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
@@ -143,10 +146,9 @@ run_test() {
   ops_per_elem="$(extract_param ops            "$test_name")"
   n_elems="$(    extract_param n-elems         "$test_name")"
 
-  log "  [${speed}] $app / $test_name"
-
   # ── Dry-run shortcut ───────────────────────────────────────────────────────
   if [ "${DRY_RUN:-0}" = "1" ]; then
+    printf "[%s] DRY  %s / %s\n" "$(ts)" "$app" "$test_name"
     echo "$app,$test_name,$seq_len,$num_seq,$repeat,$cpg,$pod_unique,$speed,DRY_RUN,,,,,," >> "$CSV"
     return
   fi
@@ -158,10 +160,7 @@ run_test() {
   fi
 
   # ── Clean before run (required by BSG cluster guide) ──────────────────────
-  log "    Cleaning $test_dir..."
-  if ! make -C "$test_dir" clean > /dev/null 2>&1; then
-    log_warn "    make clean failed (may be a fresh directory, continuing)"
-  fi
+  make -C "$test_dir" clean > /dev/null 2>&1 || true
 
   # ── Execute ────────────────────────────────────────────────────────────────
   local run_log="$test_dir/run.log"
@@ -177,23 +176,16 @@ run_test() {
 
   if [ "$run_failed" -ne 0 ]; then
     if [ "$run_failed" -eq 124 ]; then
-      # Timeout — device may be hung, reset required.
-      log_err "    TIMED OUT after ${TIMEOUT}s: $app / $test_name"
+      printf "[%s] ${RED}TIMEOUT${RESET} %s / %s (after ${TIMEOUT}s)\n" "$(ts)" "$app" "$test_name"
       echo "$app,$test_name,$seq_len,$num_seq,$repeat,$cpg,$pod_unique,$speed,TIMEOUT,,,,,," >> "$CSV"
-      reset_device "$app / $test_name timed out — device may be hung"
+      reset_device "$app / $test_name timed out"
     elif [ ! -f "$exec_log" ]; then
-      # exec.log was never created → compile/link error, not a device issue.
-      log_err "    COMPILE ERROR: $app / $test_name (exit $run_failed)"
-      log_err "    Last 10 lines of $run_log:"
-      tail -10 "$run_log" | while IFS= read -r line; do log_err "      $line"; done
-      log_err "    This is a code/config error — device does NOT need reset."
-      log_err "    Fix the error and re-run.  Stopping now."
+      printf "[%s] ${RED}COMPILE${RESET} %s / %s (exit %d — check %s)\n" "$(ts)" "$app" "$test_name" "$run_failed" "$run_log"
+      tail -10 "$run_log" | while IFS= read -r line; do printf "         %s\n" "$line"; done
       echo "$app,$test_name,$seq_len,$num_seq,$repeat,$cpg,$pod_unique,$speed,COMPILE_ERROR,,,,,," >> "$CSV"
     else
-      # Binary ran but exited non-zero — runtime failure, reset device.
-      log_err "    RUNTIME FAILED (exit $run_failed): $app / $test_name"
-      log_err "    Last 10 lines of $run_log:"
-      tail -10 "$run_log" | while IFS= read -r line; do log_err "      $line"; done
+      printf "[%s] ${RED}FAILED ${RESET} %s / %s (exit %d — check %s)\n" "$(ts)" "$app" "$test_name" "$run_failed" "$run_log"
+      tail -10 "$run_log" | while IFS= read -r line; do printf "         %s\n" "$line"; done
       echo "$app,$test_name,$seq_len,$num_seq,$repeat,$cpg,$pod_unique,$speed,FAILED,,,,,," >> "$CSV"
       reset_device "$app / $test_name runtime failure"
     fi
@@ -204,7 +196,8 @@ run_test() {
   local timing
   timing="$(parse_exec_val kernel_launch_time_sec "$exec_log")"
   if [ -z "$timing" ]; then
-    log_warn "    No kernel_launch_time_sec in $exec_log"
+    printf "[%s] ${YELLOW}WARN${RESET}    %s / %s  no kernel_launch_time_sec in exec.log\n" \
+      "$(ts)" "$app" "$test_name"
     timing="N/A"
   fi
 
@@ -231,11 +224,19 @@ print(f'{ns*rp*sl*sl/t/1e9:.4f}')" 2>/dev/null || echo "N/A")
     fi
   fi
 
-  # ── Report ────────────────────────────────────────────────────────────────
+  # ── Report (one line per test) ────────────────────────────────────────────
   if [ "$app" = "dummy/roofline" ]; then
-    log_ok "    kernel_time=${timing}s  AI=${ai} ops/B  bw=${bw_GB_s:-N/A} GB/s  gops=${gops_s:-N/A}"
+    printf "[%s] ${GREEN}OK${RESET}      %s / %s  time=%ss  AI=%s ops/B  bw=%s GB/s  gops=%s\n" \
+      "$(ts)" "$app" "$test_name" "$timing" "$ai" "${bw_GB_s:-N/A}" "${gops_s:-N/A}"
   else
-    log_ok "    kernel_time=${timing}s  gcups=${gcups}  AI=${ai} ops/B"
+    local warn=""
+    if [[ "$timing" =~ ^[0-9] ]] && python3 -c "exit(0 if float('$timing') >= 15 else 1)" 2>/dev/null; then
+      printf "[%s] ${GREEN}OK${RESET}      %s / %s  time=%ss  gcups=%s\n" \
+        "$(ts)" "$app" "$test_name" "$timing" "$gcups"
+    else
+      printf "[%s] ${YELLOW}SHORT${RESET}   %s / %s  time=%ss  gcups=%s  (< 15s)\n" \
+        "$(ts)" "$app" "$test_name" "$timing" "$gcups"
+    fi
   fi
 
   echo "$app,$test_name,$seq_len,$num_seq,$repeat,$cpg,$pod_unique,$speed,$timing,$gcups,$ai,$ops_per_elem,$n_elems,${bw_GB_s:-},${gops_s:-}" >> "$CSV"
@@ -257,8 +258,10 @@ for app in "${RUN_APPS[@]}"; do
 
   log_section "$app"
 
-  # Generate test directories
-  log "  Generating test directories..."
+  # Purge stale test directories, then regenerate from tests.mk.
+  # Purge first so old dirs (e.g. from a prior tests.mk) don't linger.
+  log "  Regenerating test directories for $app..."
+  make -C "$app_dir" purge > /dev/null 2>&1 || true
   if ! make -C "$app_dir" generate > /dev/null 2>&1; then
     log_err "  'make generate' failed for $app — check $app_dir/Makefile"
     continue

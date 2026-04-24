@@ -18,18 +18,21 @@
 #
 # FASTA constraint: num_seq × seq_len ≤ 1,048,576 bytes → num_seq = 1M / seq_len
 
-# --- Sequence-length sweep (shared data, num_seq × seq_len = 1 MB) ---
+# --- Sequence-length sweep (shared data) ---
 #
-#   seq_len  num_seq  target_time  → repeat
-#        32    32768  ~24s         → 2048
-#        64    16384  ~24s         → 1024
-#       128     8192  ~24s         →  512
-#       192     5461  ~27s         → 1024  (5461 = floor(1M/192); round down to 5120)
+# Target: num_seq × repeat × seq_len² ≈ 70 billion cells → ~20s at ~3.5 GCUPS (measured).
+# num_seq = floor(1M / seq_len), capped to keep all pods within FASTA.
+#
+#   seq_len  num_seq  repeat   cells (×10⁹)  est_time
+#        32    32768    2048       68.7        ~20s
+#        64    16384    1024       68.7        ~20s
+#       128     8192     512       68.7        ~20s  ← calibrated from hardware (18.7s at 4096rep/1024seq)
+#       192     4096     512       77.3        ~22s
 #
 TESTS += seq-len_32__num-seq_32768__repeat_2048
 TESTS += seq-len_64__num-seq_16384__repeat_1024
 TESTS += seq-len_128__num-seq_8192__repeat_512
-TESTS += seq-len_192__num-seq_5120__repeat_1024
+TESTS += seq-len_192__num-seq_4096__repeat_512
 
 # --- Shared vs unique pod data (A/B pairs) ---
 # num_seq chosen so pod-unique slice fits in FASTA: num_seq × num_pods × seq_len ≤ 1MB
