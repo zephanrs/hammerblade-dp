@@ -5,7 +5,11 @@
 #   mailbox + ready flag + overhead                          → ~50 bytes
 #
 #   REF_CORE = SEQ_LEN / 8
-#   At seq_len=2048: 9×257 + 50 = 2363 bytes < 4096  →  all seq_len safe.
+#   seq_len  REF_CORE  DMEM (bytes)  status
+#       256        32           338    ✓
+#       512        64           628    ✓
+#      1024       128          1208    ✓
+#      2048       256          2363    ✓ (max)
 #
 # Timing: O(n²) scaling.  Target 70 billion cells → ~20s at ~3.5 GCUPS.
 #   repeat = 70000 / seq_len   (num_seq × seq_len = 1MB fixed via FASTA)

@@ -1,6 +1,18 @@
 # nw/naive: row-by-row 1D systolic NW storing the full O(n²) DP matrix in DRAM.
 #
-# DMEM: only refbuf + H1 + H2 = 9×(REF_CORE+1) bytes.  Safe for all seq_len.
+# DMEM budget = 4096 bytes.  Per-core allocations:
+#   refbuf[REF_CORE+1]   → REF_CORE+1 bytes
+#   H1[REF_CORE+1]       → (REF_CORE+1) × 4 bytes
+#   H2[REF_CORE+1]       → (REF_CORE+1) × 4 bytes
+#   mailbox + ready flag → ~20 bytes
+#   stack + overhead     → ~150 bytes
+#   Total ≈ 9×(REF_CORE+1) + 170,  REF_CORE = SEQ_LEN/8
+#
+#   seq_len  REF_CORE  DMEM (bytes)  status
+#       256        32           480    ✓
+#       512        64           750    ✓
+#      1024       128          1320    ✓
+#      2048       256          2483    ✓ (max)
 #
 # DRAM constraint: dp_matrix = num_seq × (seq_len+1)² × 4 bytes per pod.
 #   Keep ≤ ~256 MB per pod (conservative).
