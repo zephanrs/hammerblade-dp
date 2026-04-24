@@ -40,7 +40,8 @@ extern "C" int kernel(int* input, int* output, int pod_id)
   const int n_tiles = bsg_tiles_X * bsg_tiles_Y;
   const int tile_id = __bsg_x * bsg_tiles_Y + __bsg_y;
 
-  // Contiguous chunk per tile for good DRAM row-buffer utilization.
+  // Each tile gets a unique contiguous chunk — no shared cache lines between cores,
+  // and no striding so DRAM row-buffer hits are maximised.
   const int chunk = (N_ELEMS + n_tiles - 1) / n_tiles;
   const int start = tile_id * chunk;
   const int end   = (start + chunk < N_ELEMS) ? start + chunk : N_ELEMS;
@@ -48,10 +49,16 @@ extern "C" int kernel(int* input, int* output, int pod_id)
   for (int rep = 0; rep < REPEAT; rep++) {
     for (int i = start; i < end; i++) {
       int val = input[i];
+      // Emit real RISC-V mul+add instructions so the compiler cannot replace
+      // the chain with a closed-form expression or eliminate the loop.
       for (int j = 0; j < OPS_PER_ELEM; j++) {
-        val = val * 31 + j;
+        asm volatile(
+          "mul %[v], %[v], %[c]\n"
+          "add %[v], %[v], %[j]\n"
+          : [v] "+r"(val)
+          : [c] "r"(31), [j] "r"(j)
+        );
       }
-      asm volatile("" : "+r"(val));
       output[i] = val;
     }
   }

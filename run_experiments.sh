@@ -56,6 +56,7 @@ declare -A APP_DIRS=(
   [nw/baseline]="nw/baseline"
   [nw/efficient]="nw/efficient"
   [dummy/roofline]="dummy/roofline"
+  [radix_sort]="radix_sort"
 )
 
 # Which apps to run (default: all).
@@ -157,6 +158,12 @@ run_test() {
   local make_args=("HB_MC_DEVICE_ID=${UNIT_ID}")
   if [ "${USE_LINEAR_BARRIER:-0}" = "1" ]; then
     make_args+=("USE_LINEAR_BARRIER=1")
+  fi
+  # Slow mode: core clock is ~32x slower → reduce repeats ~20x to keep ~20s runs.
+  if [ "$SPEED" = "slow" ] && [ -n "$repeat" ] && [ "$repeat" -gt 1 ]; then
+    local slow_repeat=$(( repeat / 20 ))
+    [ "$slow_repeat" -lt 1 ] && slow_repeat=1
+    make_args+=("repeat=${slow_repeat}")
   fi
 
   # ── Clean before run (required by BSG cluster guide) ──────────────────────
