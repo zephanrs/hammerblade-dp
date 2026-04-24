@@ -258,10 +258,14 @@ for app in "${RUN_APPS[@]}"; do
 
   log_section "$app"
 
-  # Purge stale test directories, then regenerate from tests.mk.
-  # Purge first so old dirs (e.g. from a prior tests.mk) don't linger.
+  # Hard-remove ALL previously generated test dirs (those containing parameters.mk),
+  # then regenerate from the current tests.mk.  Using find instead of 'make purge'
+  # because purge only removes dirs listed in the current TESTS variable — it leaves
+  # behind any dirs that were removed from tests.mk since the last generate.
   log "  Regenerating test directories for $app..."
-  make -C "$app_dir" purge > /dev/null 2>&1 || true
+  while IFS= read -r pfile; do
+    rm -rf "$(dirname "$pfile")"
+  done < <(find "$app_dir" -maxdepth 2 -name "parameters.mk" 2>/dev/null)
   if ! make -C "$app_dir" generate > /dev/null 2>&1; then
     log_err "  'make generate' failed for $app — check $app_dir/Makefile"
     continue
