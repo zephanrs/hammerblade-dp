@@ -1,8 +1,8 @@
-//  AMOADD barrier
-
+//  AMOADD barrier (linear wakeup — wakes all tiles one by one)
+//
 //  a0 = amo lock addr (in DRAM). Initialized to 0
 //  a1 = sense word addr (in DMEM).  Initialized to 1
-
+//
 //  void bsg_barrier_amoadd(int*, int*);
 
 .text
@@ -12,67 +12,59 @@ bsg_barrier_amoadd:
   // t1 - amo result
   // t2 - check val
   // t3 - wakeup val
+  // t4 - y index
+  // t5 - x index
 
   // send amoadd
   lw t0, 0(a1)
   amoadd.w t1, t0, 0(a0)
-  li t5, 0x20000000
-  add t5, t5, a1
 
   // is sense -1 or +1?
   // set wakeup val
   sub t3, x0, t0
- 
+
   // set check val
-  andi t2, t3, (bsg_tiles_X*bsg_tiles_Y)-1
+  blt x0, t0, bsg_barrier_amoadd_plus1
+
+  // -1 case: last to arrive has amo result == 1
+  li t2, 1
+  j bsg_barrier_amoadd_check
+
+bsg_barrier_amoadd_plus1:
+  // +1 case: last to arrive has amo result == (N-1)
+  li t2, (bsg_tiles_X*bsg_tiles_Y)-1
 
 bsg_barrier_amoadd_check:
   bne t2, t1, bsg_barrier_amoadd_sleep
-  // wakeup core 0
-  sw  t3, 0(t5)
+
+bsg_barrier_amoadd_wakeup:
+  // last core to arrive wakes every tile in the group linearly
+  li t4, bsg_tiles_Y-1
+
+bsg_barrier_amoadd_wakeup_loop_y:
+  li t5, bsg_tiles_X-1
+
+bsg_barrier_amoadd_wakeup_loop_x:
+  // remote sense address: 0x20000000 | (y<<24) | (x<<18) | offset(a1)
+  li t6, 0x20000000
+  slli a2, t4, 24
+  add t6, t6, a2
+  slli a2, t5, 18
+  add t6, t6, a2
+  add t6, t6, a1
+  sw t3, 0(t6)
+  addi t5, t5, -1
+  bge t5, x0, bsg_barrier_amoadd_wakeup_loop_x
+  addi t4, t4, -1
+  bge t4, x0, bsg_barrier_amoadd_wakeup_loop_y
+  j bsg_barrier_amoadd_end
 
 bsg_barrier_amoadd_sleep:
   lr.w t0, 0(a1)
-  beq t3, t0, bsg_barrier_amoadd_wakeup
-  // we need to check this, in order to support the reservation
-  // being cleared by a context switch
+  beq t3, t0, bsg_barrier_amoadd_end
+  // re-check with acquire to handle reservation cleared by context switch
   lr.w.aq t0, 0(a1)
   beq t3, t0, bsg_barrier_amoadd_sleep
 
-bsg_barrier_return:
+bsg_barrier_amoadd_end:
   ret
-
-bsg_barrier_amoadd_wakeup:
-  // t0 - x addr
-  // t1 - y addr
-  // t2 - base address
-  lw  t0, __bsg_x
-  lw  t1, __bsg_y
-
-  slli t6, t0, 18
-  add  t2, t5, t6
-
-  // t4 - wake-up distance
-  // t5 - shamt
-
-  li  t4, (bsg_tiles_X - 1) 
-  li  t5, 18
-
-  // if y=0, wake-up in x dim
-  bne  x0, t1, bsg_barrier_return
-  bne  x0, t0, bsg_barrier_wakeup_y
-  jal  a2, bsg_barrier_wakeup
-
-bsg_barrier_wakeup_y:
-  // wake-up in y dim
-  li  t4, (bsg_tiles_Y - 1)
-  li  t5, 24
-  mv  a2, ra
-
-bsg_barrier_wakeup:
-  sll  t6, t4, t5
-  add  t6, t2, t6
-  sw   t3, 0(t6)
-  addi t4, t4, -1
-  bne  t4, x0, bsg_barrier_wakeup 
-  jr   a2

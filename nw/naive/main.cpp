@@ -58,7 +58,8 @@ int nw_naive_multipod(int argc, char ** argv) {
     // Allocate memory on device;
     BSG_CUDA_CALL(hb_mc_device_malloc(&device, num_seq*(seq_len+1)*sizeof(uint8_t), &d_query));
     BSG_CUDA_CALL(hb_mc_device_malloc(&device, num_seq*(seq_len+1)*sizeof(uint8_t), &d_ref));
-    BSG_CUDA_CALL(hb_mc_device_malloc(&device, total_num_seq*matrix_size*sizeof(int), &d_dp_matrix));
+    // DP matrix is sized for num_seq only; repeat iterations overwrite the same slots.
+    BSG_CUDA_CALL(hb_mc_device_malloc(&device, num_seq*matrix_size*sizeof(int), &d_dp_matrix));
    
     // DMA transfer;
     printf("Transferring data: pod %d\n", pod);
@@ -93,7 +94,7 @@ int nw_naive_multipod(int argc, char ** argv) {
 
 
   // Read from device;
-  int* actual_dp_matrix = (int*) malloc(total_num_seq*matrix_size*sizeof(int));
+  int* actual_dp_matrix = (int*) malloc(num_seq*matrix_size*sizeof(int));
 
   bool fail = false;
   hb_mc_device_foreach_pod_id(&device, pod) {
@@ -101,34 +102,34 @@ int nw_naive_multipod(int argc, char ** argv) {
     BSG_CUDA_CALL(hb_mc_device_set_default_pod(&device, pod));
 
     // clear buf;
-    for (size_t i = 0; i < (size_t)total_num_seq * matrix_size; i++) {
+    for (size_t i = 0; i < (size_t)num_seq * matrix_size; i++) {
       actual_dp_matrix[i] = 0;
     }
 
     // DMA transfer; device -> host;
     std::vector<hb_mc_dma_dtoh_t> dtoh_job;
-    dtoh_job.push_back({d_dp_matrix, actual_dp_matrix, total_num_seq*matrix_size*sizeof(int)});
+    dtoh_job.push_back({d_dp_matrix, actual_dp_matrix, num_seq*matrix_size*sizeof(int)});
     BSG_CUDA_CALL(hb_mc_device_transfer_data_to_host(&device, dtoh_job.data(), dtoh_job.size()));
 
-    int H[seq_len+1][seq_len+1];
+    std::vector<int> H((seq_len+1) * (seq_len+1));
     for (int i = 0; i < num_seq; i++) {
       for (int j = 0; j <= seq_len; j++) {
-        H[j][0] = -j;
-        H[0][j] = -j;
+        H[j * (seq_len+1) + 0] = -j;
+        H[0 * (seq_len+1) + j] = -j;
       }
       for (int j = 0; j < seq_len; j++) {
         for (int k = 0; k < seq_len; k++) {
           int match = (query[seq_len*i+j] == ref[seq_len*i+k]) ? 1 : -1;
-          int score_diag = H[j][k] + match;
-          int score_up = H[j][k+1] - 1;
-          int score_left = H[j+1][k] - 1;
-          H[j+1][k+1] = std::max(score_diag, std::max(score_up, score_left));
+          int score_diag = H[j * (seq_len+1) + k] + match;
+          int score_up = H[j * (seq_len+1) + (k+1)] - 1;
+          int score_left = H[(j+1) * (seq_len+1) + k] - 1;
+          H[(j+1) * (seq_len+1) + (k+1)] = std::max(score_diag, std::max(score_up, score_left));
         }
       }
       for (int j = 0; j <= seq_len; j++) {
         for (int k = 0; k <= seq_len; k++) {
           int actual = actual_dp_matrix[(i * matrix_size) + (j * (seq_len + 1)) + k];
-          int expected = H[j][k];
+          int expected = H[j * (seq_len+1) + k];
           if (actual != expected) {
             fail = true;
             printf("Mismatch: seq=%d, row=%d, col=%d, actual=%d, expected=%d\n",

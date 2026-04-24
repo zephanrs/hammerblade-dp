@@ -493,8 +493,10 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int* path, int po
 
       local_fill(&qry[seq_id * SEQ_LEN], query_low, query_high, 0, REF_CORE);
 
+      // Path buffer is sized for num_seq sequences only (not scaled by repeat).
+      // Repeat iterations overwrite the same slots; correctness check uses first pass.
       for (int col = 0; col < REF_CORE; col++) {
-        path[(output_idx * SEQ_LEN) + (core_id * REF_CORE) + col] = split_points[col];
+        path[(seq_id * SEQ_LEN) + (core_id * REF_CORE) + col] = split_points[col];
       }
     }
   }

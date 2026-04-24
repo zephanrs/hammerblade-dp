@@ -35,18 +35,14 @@ int sw_multipod(int argc, char ** argv) {
   printf("max_seq_len=%d\n", seq_len);
   printf("min_seq_len=%d\n", VAR_LEN_MIN);
   
-  // prepare inputs;
+  // prepare inputs — dense layout (fixed stride = seq_len per sequence);
   uint8_t* query = (uint8_t*) malloc(num_seq*seq_len*sizeof(uint8_t));
   uint8_t* ref = (uint8_t*) malloc(num_seq*seq_len*sizeof(uint8_t));
-  uint8_t* packed_query = (uint8_t*) malloc(num_seq*seq_len*sizeof(uint8_t));
-  uint8_t* packed_ref = (uint8_t*) malloc(num_seq*seq_len*sizeof(uint8_t));
 
   int* qry_lens = (int*) malloc(num_seq*sizeof(int));
   int* ref_lens = (int*) malloc(num_seq*sizeof(int));
   prepare_sw_inputs(query_path, ref_path, query, ref, qry_lens, ref_lens, num_seq, seq_len);
   sort_sw_inputs_by_length(query, ref, qry_lens, ref_lens, num_seq, seq_len);
-  pack_variable_stride_sequences(query, qry_lens, num_seq, seq_len, packed_query);
-  pack_variable_stride_sequences(ref, ref_lens, num_seq, seq_len, packed_ref);
 
   // atomic sequence counter (shared across groups);
   int seq_counter_init = 0;
@@ -80,8 +76,8 @@ int sw_multipod(int argc, char ** argv) {
     // DMA transfer;
     printf("Transferring data: pod %d\n", pod);
     std::vector<hb_mc_dma_htod_t> htod_job;
-    htod_job.push_back({d_query, packed_query, num_seq*seq_len*sizeof(uint8_t)});
-    htod_job.push_back({d_ref, packed_ref, num_seq*seq_len*sizeof(uint8_t)});
+    htod_job.push_back({d_query, query, num_seq*seq_len*sizeof(uint8_t)});
+    htod_job.push_back({d_ref, ref, num_seq*seq_len*sizeof(uint8_t)});
     htod_job.push_back({d_qry_lens, qry_lens, num_seq*sizeof(int)});
     htod_job.push_back({d_ref_lens, ref_lens, num_seq*sizeof(int)});
     htod_job.push_back({d_seq_counter, &seq_counter_init, sizeof(int)});
@@ -141,8 +137,6 @@ int sw_multipod(int argc, char ** argv) {
 
   // Finish;
   BSG_CUDA_CALL(hb_mc_device_finish(&device));
-  free(packed_query);
-  free(packed_ref);
   free(qry_lens);
   free(ref_lens);
   if (fail) {

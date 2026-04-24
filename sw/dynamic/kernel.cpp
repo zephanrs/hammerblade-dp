@@ -132,7 +132,8 @@ extern "C" int kernel(
     int maxv = 0;
 
     // load reference chunk (batches of 8, then rest)
-    uint8_t *ref_src = &ref[ref_len * input_id + (CORE_ID * ref_core)];
+    // Dense layout: stride is MAX_SEQ_LEN regardless of per-sequence ref_len.
+    uint8_t *ref_src = &ref[MAX_SEQ_LEN * input_id + (CORE_ID * ref_core)];
     int k = 0;
     for (; k + 8 <= ref_core; k += 8) {
       unrolled_load<uint8_t, 8>(&refbuf[k + 1], &ref_src[k]);
@@ -146,7 +147,7 @@ extern "C" int kernel(
       uint8_t qry_char;
 
       if (CORE_ID == 0) {
-        qry_char = qry[qry_len * input_id + i];
+        qry_char = qry[MAX_SEQ_LEN * input_id + i];
         H_curr[0] = 0;
       } else {
         // wait for core to the left to write

@@ -6,28 +6,24 @@ HB_HAMMERBENCH_PATH ?= $(abspath $(APP_PATH)/../../../..)
 
 include test_defs.mk
 
-
-# tests;
 TESTS =
 include tests.mk
 
 TESTS_DIRS = $(TESTS)
 
-
 $(addsuffix /parameters.mk,$(TESTS_DIRS)): %/parameters.mk:
 	@echo Creating $@
 	@mkdir -p $(dir $@)
 	@touch $@
-	@echo test-name  = $* >> $@
-	@echo num-seq = $(call get-num-seq,$*) >> $@
-	@echo seq-len = $(call get-seq-len,$*) >> $@
+	@echo test-name = $* >> $@
+	@ops="$(call get-ops,$*)"; \
+	if [ -n "$$ops" ]; then echo ops = "$$ops" >> $@; fi
+	@n_elems="$(call get-n-elems,$*)"; \
+	if [ -n "$$n_elems" ]; then echo n-elems = "$$n_elems" >> $@; fi
 	@repeat="$(call get-repeat,$*)"; \
 	if [ -n "$$repeat" ]; then echo repeat = "$$repeat" >> $@; fi
-	@pod_unique="$(call get-pod-unique-data,$*)"; \
-	if [ -n "$$pod_unique" ]; then echo pod-unique-data = "$$pod_unique" >> $@; fi
-
 
 include $(HB_HAMMERBENCH_PATH)/mk/testbench_common.mk
 
 clean:
-	rm -rf seq-len*
+	rm -rf ops_*

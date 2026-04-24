@@ -13,6 +13,7 @@
 #include <map>
 #include "scheduler.hpp"
 #include "../common/test_input.hpp"
+#include "../../common/host_bench.hpp"
 
 #define ALLOC_NAME "default_allocator"
 
@@ -119,9 +120,14 @@ int sw_multipod(int argc, char ** argv) {
 
   // Launch pod;
   printf("Launching all pods\n");
+  timespec kernel_start = {};
+  timespec kernel_end = {};
   hb_mc_manycore_trace_enable((&device)->mc);
+  clock_gettime(CLOCK_MONOTONIC, &kernel_start);
   BSG_CUDA_CALL(hb_mc_device_pods_kernels_execute(&device));
+  clock_gettime(CLOCK_MONOTONIC, &kernel_end);
   hb_mc_manycore_trace_disable((&device)->mc);
+  print_kernel_launch_time(kernel_start, kernel_end);
 
 
   // validation still compares against a plain cpu smith-waterman implementation.

@@ -3,6 +3,7 @@ test-name = seq-len_$(1)__num-seq_$(2)
 get-num-seq = $(lastword $(subst _, ,$(filter num-seq_%,$(subst __, ,$(1)))))
 get-seq-len = $(lastword $(subst _, ,$(filter seq-len_%,$(subst __, ,$(1)))))
 get-repeat = $(lastword $(subst _, ,$(filter repeat_%,$(subst __, ,$(1)))))
+get-pod-unique-data = $(lastword $(subst _, ,$(filter pod-unique-data_%,$(subst __, ,$(1)))))
 
 # Native simulator compile-time defines for one test name.
 native-defines-for-test = \

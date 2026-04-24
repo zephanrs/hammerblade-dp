@@ -1,0 +1,287 @@
+#!/usr/bin/env bash
+# run_experiments.sh — build and run all HammerBlade SW/NW/roofline experiments.
+#
+# Runs on real ASIC hardware.  Before running, you MUST have already done:
+#   cd /cluster_src/reset_half && make reset UNIT_ID=2
+#
+# Usage:
+#   ./run_experiments.sh                        # run all apps, all tests
+#   ./run_experiments.sh sw/1d sw/2d            # run specific apps
+#   SLOW_MODE=1 ./run_experiments.sh            # label results as "slow" (run after cool_down)
+#   TIMEOUT=600 ./run_experiments.sh            # per-test timeout in seconds (default 3600)
+#   DRY_RUN=1 ./run_experiments.sh              # print what would run, don't execute
+#   VERBOSE=1 ./run_experiments.sh              # show full make output inline
+#
+# Output:
+#   results/results_<timestamp>.csv    — timing data
+#   results/run_<timestamp>.log        — full log of this run
+#
+# CSV columns:
+#   app, test_name, seq_len, num_seq, repeat, cpg, pod_unique_data,
+#   speed, kernel_time_sec, gcups, arith_intensity_ops_per_byte,
+#   ops_per_elem, n_elems, achieved_bw_GB_s, achieved_gops_s
+
+set -uo pipefail
+
+# ─── Configuration ────────────────────────────────────────────────────────────
+REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
+TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
+OUT_DIR="$REPO_ROOT/results"
+CSV="$OUT_DIR/results_${TIMESTAMP}.csv"
+LOG="$OUT_DIR/run_${TIMESTAMP}.log"
+mkdir -p "$OUT_DIR"
+
+# Your assigned hardware unit ID.
+UNIT_ID="${UNIT_ID:-2}"
+
+# Per-test timeout (seconds). If exceeded, the run is killed and the device reset.
+TIMEOUT="${TIMEOUT:-3600}"
+
+# Speed label: "fast" for normal clock, "slow" for after cool_down (32x slower).
+# Set SLOW_MODE=1 to label results as slow (you must run cool_down manually first).
+SPEED="${SLOW_MODE:+slow}"; SPEED="${SPEED:-fast}"
+
+# Reset command — executed automatically after any test failure/timeout.
+# Uses the BSG cluster reset procedure.
+RESET_CMD="${RESET_CMD:-cd /cluster_src/reset_half && make reset UNIT_ID=${UNIT_ID}}"
+
+# Apps and their directories relative to repo root.
+declare -A APP_DIRS=(
+  [sw/1d]="sw/1d"
+  [sw/2d]="sw/2d"
+  [nw/naive]="nw/naive"
+  [nw/baseline]="nw/baseline"
+  [nw/efficient]="nw/efficient"
+  [dummy/roofline]="dummy/roofline"
+)
+
+# Which apps to run (default: all).
+if [ $# -gt 0 ]; then
+  RUN_APPS=("$@")
+else
+  RUN_APPS=("${!APP_DIRS[@]}")
+fi
+
+# ─── Logging helpers ──────────────────────────────────────────────────────────
+# All output goes to stdout AND the log file simultaneously.
+exec > >(tee -a "$LOG") 2>&1
+
+RED='\033[0;31m'; YELLOW='\033[1;33m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; RESET='\033[0m'
+NC='\033[0m'
+
+ts()      { date '+%H:%M:%S'; }
+log()     { printf "[%s] %s\n"      "$(ts)" "$*"; }
+log_ok()  { printf "[%s] ${GREEN}OK${RESET}  %s\n"   "$(ts)" "$*"; }
+log_warn(){ printf "[%s] ${YELLOW}WARN${RESET} %s\n" "$(ts)" "$*"; }
+log_err() { printf "[%s] ${RED}ERR${RESET}  %s\n"    "$(ts)" "$*" >&2; }
+log_section() { printf "\n[%s] ${CYAN}=== %s ===${RESET}\n" "$(ts)" "$*"; }
+
+# ─── CSV header ───────────────────────────────────────────────────────────────
+echo "app,test_name,seq_len,num_seq,repeat,cpg,pod_unique_data,speed,kernel_time_sec,gcups,arith_intensity_ops_per_byte,ops_per_elem,n_elems,achieved_bw_GB_s,achieved_gops_s" > "$CSV"
+
+log "Starting experiment run at $(date)"
+log "CSV output  : $CSV"
+log "Log output  : $LOG"
+log "Apps to run : ${RUN_APPS[*]}"
+log "UNIT_ID     : $UNIT_ID"
+log "Speed label : $SPEED"
+log "Timeout     : ${TIMEOUT}s per test"
+[ "${DRY_RUN:-0}" = "1" ] && log_warn "DRY_RUN=1 — no tests will actually execute"
+[ "$SPEED" = "slow" ] && log_warn "SLOW_MODE=1: labeling results as 'slow' (assumes cool_down was already run)"
+echo ""
+
+# ─── Device reset ─────────────────────────────────────────────────────────────
+# Called after any test failure.  Runs RESET_CMD if set, otherwise prints a
+# prominent warning so the user knows to reset manually before the next test.
+reset_device() {
+  local reason="$1"
+  printf "\n"
+  log_err "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+  log_err "  DEVICE RESET REQUIRED — $reason"
+  if [ -n "$RESET_CMD" ]; then
+    log_err "  Running: $RESET_CMD"
+    if eval "$RESET_CMD"; then
+      log_warn "  Reset command completed."
+    else
+      log_err "  Reset command failed!  You may need to reset manually."
+    fi
+  else
+    log_err "  RESET_CMD is not set.  Reset the device manually:"
+    log_err "    cd /cluster_src/reset_half && make reset UNIT_ID=${UNIT_ID}"
+  fi
+  log_err "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+  printf "\n"
+}
+
+# ─── Helpers ─────────────────────────────────────────────────────────────────
+extract_param() {
+  local name="$1" str="$2"
+  # Match   name_VALUE  in a double-underscore-delimited test name
+  echo "$str" | grep -oP "(?<=${name}_)[0-9]+" | head -1 || true
+}
+
+# Parse a key=value line from exec.log
+parse_exec_val() {
+  local key="$1" file="$2"
+  grep -oP "(?<=${key}=)[0-9.e+\-]+" "$file" 2>/dev/null | tail -1 || true
+}
+
+# ─── Run one test dir ─────────────────────────────────────────────────────────
+run_test() {
+  local app="$1" test_dir="$2"
+  local speed="$SPEED"
+  local test_name
+  test_name="$(basename "$test_dir")"
+
+  # ── Parse parameters from test name ────────────────────────────────────────
+  local seq_len num_seq repeat cpg pod_unique ops_per_elem n_elems
+  seq_len="$(    extract_param seq-len         "$test_name")"
+  num_seq="$(    extract_param num-seq         "$test_name")"
+  repeat="$(     extract_param repeat          "$test_name")";  repeat="${repeat:-1}"
+  cpg="$(        extract_param cpg             "$test_name")";  cpg="${cpg:-8}"
+  pod_unique="$( extract_param pod-unique-data "$test_name")";  pod_unique="${pod_unique:-0}"
+  ops_per_elem="$(extract_param ops            "$test_name")"
+  n_elems="$(    extract_param n-elems         "$test_name")"
+
+  log "  [${speed}] $app / $test_name"
+
+  # ── Dry-run shortcut ───────────────────────────────────────────────────────
+  if [ "${DRY_RUN:-0}" = "1" ]; then
+    echo "$app,$test_name,$seq_len,$num_seq,$repeat,$cpg,$pod_unique,$speed,DRY_RUN,,,,,," >> "$CSV"
+    return
+  fi
+
+  # ── Build make arguments ───────────────────────────────────────────────────
+  local make_args=("HB_MC_DEVICE_ID=${UNIT_ID}")
+  if [ "${USE_LINEAR_BARRIER:-0}" = "1" ]; then
+    make_args+=("USE_LINEAR_BARRIER=1")
+  fi
+
+  # ── Clean before run (required by BSG cluster guide) ──────────────────────
+  log "    Cleaning $test_dir..."
+  if ! make -C "$test_dir" clean > /dev/null 2>&1; then
+    log_warn "    make clean failed (may be a fresh directory, continuing)"
+  fi
+
+  # ── Execute ────────────────────────────────────────────────────────────────
+  local run_log="$test_dir/run.log"
+  local exec_log="$test_dir/exec.log"
+  local make_cmd=(make -C "$test_dir" exec.log "${make_args[@]}")
+
+  if [ "${VERBOSE:-0}" = "1" ]; then
+    if ! timeout "$TIMEOUT" "${make_cmd[@]}"; then
+      log_err "    FAILED: $app / $test_name"
+      echo "$app,$test_name,$seq_len,$num_seq,$repeat,$cpg,$pod_unique,$speed,FAILED,,,,,," >> "$CSV"
+      reset_device "$app / $test_name failed"
+      return
+    fi
+  else
+    if ! timeout "$TIMEOUT" "${make_cmd[@]}" > "$run_log" 2>&1; then
+      local exit_code=$?
+      if [ $exit_code -eq 124 ]; then
+        log_err "    TIMED OUT after ${TIMEOUT}s: $app / $test_name"
+        echo "$app,$test_name,$seq_len,$num_seq,$repeat,$cpg,$pod_unique,$speed,TIMEOUT,,,,,," >> "$CSV"
+        reset_device "$app / $test_name timed out after ${TIMEOUT}s"
+      else
+        log_err "    FAILED (exit $exit_code): $app / $test_name"
+        log_err "    Last 10 lines of $run_log:"
+        tail -10 "$run_log" | while IFS= read -r line; do log_err "      $line"; done
+        echo "$app,$test_name,$seq_len,$num_seq,$repeat,$cpg,$pod_unique,$speed,FAILED,,,,,," >> "$CSV"
+        reset_device "$app / $test_name failed (exit $exit_code)"
+      fi
+      return
+    fi
+  fi
+
+  # ── Extract timing ─────────────────────────────────────────────────────────
+  local timing
+  timing="$(parse_exec_val kernel_launch_time_sec "$exec_log")"
+  if [ -z "$timing" ]; then
+    log_warn "    No kernel_launch_time_sec in $exec_log"
+    timing="N/A"
+  fi
+
+  # ── Extract roofline-specific metrics ─────────────────────────────────────
+  local bw_GB_s="" gops_s=""
+  if [ "$app" = "dummy/roofline" ] && [ -f "$exec_log" ]; then
+    bw_GB_s="$( parse_exec_val achieved_bw_GB_s  "$exec_log")"
+    gops_s="$(  parse_exec_val achieved_gops_s   "$exec_log")"
+    [ -z "$bw_GB_s"  ] && log_warn "    achieved_bw_GB_s not found in $exec_log"
+    [ -z "$gops_s"   ] && log_warn "    achieved_gops_s not found in $exec_log"
+  fi
+
+  # ── Compute derived metrics ────────────────────────────────────────────────
+  local gcups="N/A" ai="N/A"
+  if [[ "$timing" =~ ^[0-9] ]]; then
+    if [ -n "$seq_len" ] && [ -n "$num_seq" ]; then
+      gcups=$(python3 -c "
+t=float('$timing'); sl=int('$seq_len'); ns=int('$num_seq'); rp=int('$repeat')
+print(f'{ns*rp*sl*sl/t/1e9:.4f}')" 2>/dev/null || echo "N/A")
+      ai=$(python3 -c "print(f'{5*int(\"$seq_len\")/2:.1f}')" 2>/dev/null || echo "N/A")
+    elif [ -n "$ops_per_elem" ]; then
+      # Roofline kernel: OI = 2*ops_per_elem / 8
+      ai=$(python3 -c "print(f'{2*int(\"$ops_per_elem\")/8:.4f}')" 2>/dev/null || echo "N/A")
+    fi
+  fi
+
+  # ── Report ────────────────────────────────────────────────────────────────
+  if [ "$app" = "dummy/roofline" ]; then
+    log_ok "    kernel_time=${timing}s  AI=${ai} ops/B  bw=${bw_GB_s:-N/A} GB/s  gops=${gops_s:-N/A}"
+  else
+    log_ok "    kernel_time=${timing}s  gcups=${gcups}  AI=${ai} ops/B"
+  fi
+
+  echo "$app,$test_name,$seq_len,$num_seq,$repeat,$cpg,$pod_unique,$speed,$timing,$gcups,$ai,$ops_per_elem,$n_elems,${bw_GB_s:-},${gops_s:-}" >> "$CSV"
+}
+
+# ─── Main loop ────────────────────────────────────────────────────────────────
+total_tests=0
+passed_tests=0
+failed_tests=0
+
+for app in "${RUN_APPS[@]}"; do
+  app_rel="${APP_DIRS[$app]:-$app}"
+  app_dir="$REPO_ROOT/$app_rel"
+
+  if [ ! -d "$app_dir" ]; then
+    log_err "Directory not found for app '$app': $app_dir — skipping"
+    continue
+  fi
+
+  log_section "$app"
+
+  # Generate test directories
+  log "  Generating test directories..."
+  if ! make -C "$app_dir" generate > /dev/null 2>&1; then
+    log_err "  'make generate' failed for $app — check $app_dir/Makefile"
+    continue
+  fi
+
+  # Collect test directories
+  mapfile -t test_dirs < <(find "$app_dir" -maxdepth 2 -name "parameters.mk" -exec dirname {} \; | sort)
+
+  if [ ${#test_dirs[@]} -eq 0 ]; then
+    log_warn "  No test directories found (parameters.mk missing)"
+    continue
+  fi
+
+  log "  Found ${#test_dirs[@]} test(s)"
+
+  for tdir in "${test_dirs[@]}"; do
+    total_tests=$((total_tests + 1))
+    run_test "$app" "$tdir"
+  done
+done
+
+# ─── Summary ─────────────────────────────────────────────────────────────────
+echo ""
+log_section "Run complete"
+log "Total tests    : $total_tests"
+log "Results CSV    : $CSV"
+log "Full log       : $LOG"
+
+# Count failures from CSV (lines with FAILED or TIMEOUT)
+n_fail=$(grep -c ',FAILED\|,TIMEOUT' "$CSV" 2>/dev/null || echo 0)
+n_pass=$(( $(wc -l < "$CSV") - 1 - n_fail ))
+log "Passed         : $n_pass"
+[ "$n_fail" -gt 0 ] && log_err "Failed/Timeout : $n_fail" || log "Failed/Timeout : 0"

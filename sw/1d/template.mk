@@ -32,6 +32,12 @@ endif
 ifdef active-groups
 DEFINES += -DACTIVE_COMPUTE_GROUPS=$(active-groups)
 endif
+ifdef cpg
+DEFINES += -DCORES_PER_GROUP=$(cpg)
+endif
+ifdef pod-unique-data
+DEFINES += -DPOD_UNIQUE_DATA=1
+endif
 ifdef len-min
 DEFINES += -DVAR_LEN_MIN=$(len-min)
 endif
@@ -69,6 +75,9 @@ RISCV_CCPPFLAGS += -DINPUT_REPEAT_FACTOR=$(repeat)
 endif
 ifdef active-groups
 RISCV_CCPPFLAGS += -DACTIVE_COMPUTE_GROUPS=$(active-groups)
+endif
+ifdef cpg
+RISCV_CCPPFLAGS += -DCORES_PER_GROUP=$(cpg)
 endif
 ifdef len-min
 RISCV_CCPPFLAGS += -DVAR_LEN_MIN=$(len-min)

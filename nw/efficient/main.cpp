@@ -240,7 +240,8 @@ int nw_baseline_multipod(int argc, char ** argv) {
     BSG_CUDA_CALL(hb_mc_device_malloc(&device, num_seq*(seq_len+1)*sizeof(uint8_t), &d_query));
     BSG_CUDA_CALL(hb_mc_device_malloc(&device, num_seq*(seq_len+1)*sizeof(uint8_t), &d_ref));
     BSG_CUDA_CALL(hb_mc_device_malloc(&device, total_num_seq*sizeof(int), &d_output));
-    BSG_CUDA_CALL(hb_mc_device_malloc(&device, total_num_seq*seq_len*sizeof(int), &d_path));
+    // Path buffer is per-unique-sequence only; repeat iterations overwrite same slots.
+    BSG_CUDA_CALL(hb_mc_device_malloc(&device, num_seq*seq_len*sizeof(int), &d_path));
    
     // DMA transfer;
     printf("Transferring data: pod %d\n", pod);
@@ -276,7 +277,7 @@ int nw_baseline_multipod(int argc, char ** argv) {
 
   // Read from device;
   int* actual_output = (int*) malloc(total_num_seq*sizeof(int));
-  int* actual_path = (int*) malloc(total_num_seq*seq_len*sizeof(int));
+  int* actual_path = (int*) malloc(num_seq*seq_len*sizeof(int));
 
   bool fail = false;
   hb_mc_device_foreach_pod_id(&device, pod) {
@@ -287,14 +288,14 @@ int nw_baseline_multipod(int argc, char ** argv) {
     for (int i = 0; i < total_num_seq; i++) {
       actual_output[i] = 0;
     }
-    for (int i = 0; i < total_num_seq * seq_len; i++) {
+    for (int i = 0; i < num_seq * seq_len; i++) {
       actual_path[i] = 0;
     }
 
     // DMA transfer; device -> host;
     std::vector<hb_mc_dma_dtoh_t> dtoh_job;
     dtoh_job.push_back({d_output, actual_output, total_num_seq*sizeof(int)});
-    dtoh_job.push_back({d_path, actual_path, total_num_seq*seq_len*sizeof(int)});
+    dtoh_job.push_back({d_path, actual_path, (uint32_t)(num_seq*seq_len*sizeof(int))});
     BSG_CUDA_CALL(hb_mc_device_transfer_data_to_host(&device, dtoh_job.data(), dtoh_job.size()));
 
     std::vector<int> forward_scores;

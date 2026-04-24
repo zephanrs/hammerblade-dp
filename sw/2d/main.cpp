@@ -16,6 +16,10 @@
 
 #define ALLOC_NAME "default_allocator"
 
+#ifndef POD_UNIQUE_DATA
+#define POD_UNIQUE_DATA 0
+#endif
+
 // Host main;
 int sw_multipod(int argc, char ** argv) {
   int r = 0;
@@ -35,9 +39,12 @@ int sw_multipod(int argc, char ** argv) {
   printf("seq_len=%d\n", seq_len);
   
   // prepare inputs;
-  uint8_t* query = (uint8_t*) malloc(num_seq*seq_len*sizeof(uint8_t));
-  uint8_t* ref = (uint8_t*) malloc(num_seq*seq_len*sizeof(uint8_t));
-  prepare_fixed_length_inputs(query_path, ref_path, query, ref, num_seq, seq_len);
+  const int num_pods  = NUM_POD_X;
+  const int host_seq  = POD_UNIQUE_DATA ? num_pods * num_seq : num_seq;
+  printf("pod_unique_data=%d\n", POD_UNIQUE_DATA);
+  uint8_t* query = (uint8_t*) malloc(host_seq*seq_len*sizeof(uint8_t));
+  uint8_t* ref   = (uint8_t*) malloc(host_seq*seq_len*sizeof(uint8_t));
+  prepare_fixed_length_inputs(query_path, ref_path, query, ref, host_seq, seq_len);
  
   // initialize device; 
   hb_mc_device_t device;
@@ -61,9 +68,10 @@ int sw_multipod(int argc, char ** argv) {
    
     // DMA transfer;
     printf("Transferring data: pod %d\n", pod);
+    const int pod_off = POD_UNIQUE_DATA ? pod * num_seq : 0;
     std::vector<hb_mc_dma_htod_t> htod_job;
-    htod_job.push_back({d_query, query, num_seq*seq_len*sizeof(uint8_t)});
-    htod_job.push_back({d_ref, ref, num_seq*seq_len*sizeof(uint8_t)});
+    htod_job.push_back({d_query, query + pod_off*seq_len, (uint32_t)(num_seq*seq_len*sizeof(uint8_t))});
+    htod_job.push_back({d_ref,   ref   + pod_off*seq_len, (uint32_t)(num_seq*seq_len*sizeof(uint8_t))});
     BSG_CUDA_CALL(hb_mc_device_transfer_data_to_device(&device, htod_job.data(), htod_job.size()));
 
     // Cuda args;

@@ -52,10 +52,9 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* dp_matrix, int pod_id)
 
   for (int repeat = 0; repeat < kInputRepeatFactor; repeat++) {
     for (int s = GROUP_ID; s < NUM_SEQ; s += NUM_GROUPS) {
-      const int output_idx = (repeat * NUM_SEQ) + s;
       int *H_curr = H1;
       int *H_prev = H2;
-      int *seq_dp = &dp_matrix[output_idx * DP_STRIDE * DP_STRIDE];
+      int *seq_dp = &dp_matrix[s * DP_STRIDE * DP_STRIDE];
       int col_base = CORE_ID * REF_CORE;
 
       for (int k = 0; k <= REF_CORE; k++) {

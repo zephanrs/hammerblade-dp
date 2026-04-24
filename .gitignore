@@ -1,4 +1,24 @@
+# hammer-sim build artifacts
 /hammer-sim/build/
 /hammer-sim/bin/
+
+# Generated test directories (created by 'make generate' / run_experiments.sh)
 /sw/*/seq-len_*/
+/sw/*/cpg_*/
+/nw/*/seq-len_*/
+/nw/*/num-seq_*/
+/dummy/*/ops_*/
+/dummy/*/num-elems_*/
 /chaining/chain-len_*/
+/radix_sort/num-elems_*/
+
+# Native / intermediate build output
+a.out
+*.o
+*.rvo
+*.riscv
+
+# results/ is intentionally NOT ignored — push it from the server to bring
+# CSVs and logs back for analysis.  If you want to stop tracking results,
+# uncomment the line below.
+# /results/
