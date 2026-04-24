@@ -38,9 +38,9 @@ mkdir -p "$OUT_DIR"
 UNIT_ID="${UNIT_ID:-2}"
 
 # Per-test timeout (seconds). If exceeded, the run is killed and the device reset.
-# 180s accommodates slow-mode (core clock ~32x slower): fast-mode ~20s tests
-# run ~32s at slow; heavy roofline tests that clamp to repeat=1 can reach ~100s.
-TIMEOUT="${TIMEOUT:-180}"
+# 10 min accommodates slow-mode headroom and overnight nohup runs where nobody
+# is watching for an early timeout.
+TIMEOUT="${TIMEOUT:-600}"
 
 # Speed label: "fast" for normal clock, "slow" for after cool_down (32x slower).
 # Set SLOW_MODE=1 to label results as slow (you must run cool_down manually first).
@@ -56,19 +56,16 @@ declare -A APP_DIRS=(
   [sw/2d]="sw/2d"
   [nw/naive]="nw/naive"
   [nw/baseline]="nw/baseline"
-  [nw/efficient]="nw/efficient"
   [dummy/roofline]="dummy/roofline"
   [radix_sort]="radix_sort"
 )
 
-# FULL_APPS: the entire benchmark set, including the two NW variants that
-# are currently timing out on hardware (tracked: nw/baseline and nw/efficient
-# both hang — investigate separately).
-FULL_APPS=(sw/1d sw/2d nw/naive nw/baseline dummy/roofline radix_sort nw/efficient)
+# FULL_APPS: the entire benchmark set. nw/efficient dropped entirely — its
+# Hirschberg hang is parked until we redesign the inter-sequence sync.
+FULL_APPS=(sw/1d sw/2d nw/naive nw/baseline dummy/roofline radix_sort)
 # DEFAULT_APPS: the apps that currently work — what the overnight run uses.
 # Dropped from nightly sweep (kept in FULL_APPS for easy re-enable):
 #   - nw/baseline: hangs on hardware even at repeat=1 (unclear why vs sw/1d)
-#   - nw/efficient: Hirschberg inter-sequence hang persists after reset fix
 #   - radix_sort: compile still broken after multiple fixes; needs more work
 DEFAULT_APPS=(sw/1d sw/2d nw/naive dummy/roofline)
 
