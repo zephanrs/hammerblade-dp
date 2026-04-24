@@ -59,14 +59,14 @@ declare -A APP_DIRS=(
   [radix_sort]="radix_sort"
 )
 
-# Default run order. nw/efficient is last because it's the most fragile
-# (can still hang in Hirschberg inter-sequence sync); we don't want a hang
-# there to block collection of the other apps' data.
-# FULL_APPS is the normal full sweep:
+# FULL_APPS: the entire benchmark set, including the two NW variants that
+# are currently timing out on hardware (tracked: nw/baseline and nw/efficient
+# both hang — investigate separately).
 FULL_APPS=(sw/1d sw/2d nw/naive nw/baseline dummy/roofline radix_sort nw/efficient)
-# TEMPORARY: just run nw/naive to smoke-test repeat=1 and calibrate timings.
-# Revert DEFAULT_APPS=("${FULL_APPS[@]}") once timings are known.
-DEFAULT_APPS=(nw/naive)
+# DEFAULT_APPS: the apps that currently work — what the overnight run uses.
+# Drop nw/baseline and nw/efficient from the nightly sweep until their hangs
+# are fixed; keep them in FULL_APPS so they're easy to re-enable.
+DEFAULT_APPS=(sw/1d sw/2d nw/naive dummy/roofline radix_sort)
 
 # Which apps to run (default: DEFAULT_APPS in order).
 if [ $# -gt 0 ]; then
