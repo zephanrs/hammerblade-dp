@@ -311,8 +311,17 @@ log "Total tests    : $total_tests"
 log "Results CSV    : $CSV"
 log "Full log       : $LOG"
 
-# Count failures from CSV (lines with FAILED or TIMEOUT)
-n_fail=$(grep -c ',FAILED\|,TIMEOUT' "$CSV" 2>/dev/null || echo 0)
-n_pass=$(( $(wc -l < "$CSV") - 1 - n_fail ))
+# Count failures from CSV (lines with FAILED or TIMEOUT).
+# grep -c prints the count AND exits 1 when count==0, so `|| echo 0` would
+# emit a second "0" → "0\n0", breaking arithmetic below. Use `|| true` and
+# let the prefixed ${...:-0} supply the default.
+n_fail=$(grep -c ',FAILED\|,TIMEOUT' "$CSV" 2>/dev/null || true)
+n_fail=${n_fail:-0}
+n_lines=$(wc -l < "$CSV" 2>/dev/null || echo 0)
+n_pass=$(( n_lines - 1 - n_fail ))
 log "Passed         : $n_pass"
-[ "$n_fail" -gt 0 ] && log_err "Failed/Timeout : $n_fail" || log "Failed/Timeout : 0"
+if [ "$n_fail" -gt 0 ]; then
+  log_err "Failed/Timeout : $n_fail"
+else
+  log "Failed/Timeout : 0"
+fi
