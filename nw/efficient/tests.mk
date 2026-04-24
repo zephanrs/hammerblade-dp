@@ -28,7 +28,9 @@
 #       128     8192     512       68.7        ~20s
 #       256     4096     256       68.7        ~20s
 #
-TESTS += seq-len_32__num-seq_32768__repeat_2048
-TESTS += seq-len_64__num-seq_16384__repeat_1024
-TESTS += seq-len_128__num-seq_8192__repeat_512
-TESTS += seq-len_256__num-seq_4096__repeat_256
+# Smoke-test first: repeat=1 to verify each size runs (and that the
+# inter-sequence hang fix actually holds on hardware). Scale up after.
+TESTS += seq-len_32__num-seq_32768__repeat_1
+TESTS += seq-len_64__num-seq_16384__repeat_1
+TESTS += seq-len_128__num-seq_8192__repeat_1
+TESTS += seq-len_256__num-seq_4096__repeat_1
