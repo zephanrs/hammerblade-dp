@@ -168,29 +168,36 @@ run_test() {
   local exec_log="$test_dir/exec.log"
   local make_cmd=(make -C "$test_dir" exec.log "${make_args[@]}")
 
+  local run_failed=0
   if [ "${VERBOSE:-0}" = "1" ]; then
-    if ! timeout "$TIMEOUT" "${make_cmd[@]}"; then
-      log_err "    FAILED: $app / $test_name"
-      echo "$app,$test_name,$seq_len,$num_seq,$repeat,$cpg,$pod_unique,$speed,FAILED,,,,,," >> "$CSV"
-      reset_device "$app / $test_name failed"
-      return
-    fi
+    timeout "$TIMEOUT" "${make_cmd[@]}" || run_failed=$?
   else
-    if ! timeout "$TIMEOUT" "${make_cmd[@]}" > "$run_log" 2>&1; then
-      local exit_code=$?
-      if [ $exit_code -eq 124 ]; then
-        log_err "    TIMED OUT after ${TIMEOUT}s: $app / $test_name"
-        echo "$app,$test_name,$seq_len,$num_seq,$repeat,$cpg,$pod_unique,$speed,TIMEOUT,,,,,," >> "$CSV"
-        reset_device "$app / $test_name timed out after ${TIMEOUT}s"
-      else
-        log_err "    FAILED (exit $exit_code): $app / $test_name"
-        log_err "    Last 10 lines of $run_log:"
-        tail -10 "$run_log" | while IFS= read -r line; do log_err "      $line"; done
-        echo "$app,$test_name,$seq_len,$num_seq,$repeat,$cpg,$pod_unique,$speed,FAILED,,,,,," >> "$CSV"
-        reset_device "$app / $test_name failed (exit $exit_code)"
-      fi
-      return
+    timeout "$TIMEOUT" "${make_cmd[@]}" > "$run_log" 2>&1 || run_failed=$?
+  fi
+
+  if [ "$run_failed" -ne 0 ]; then
+    if [ "$run_failed" -eq 124 ]; then
+      # Timeout — device may be hung, reset required.
+      log_err "    TIMED OUT after ${TIMEOUT}s: $app / $test_name"
+      echo "$app,$test_name,$seq_len,$num_seq,$repeat,$cpg,$pod_unique,$speed,TIMEOUT,,,,,," >> "$CSV"
+      reset_device "$app / $test_name timed out — device may be hung"
+    elif [ ! -f "$exec_log" ]; then
+      # exec.log was never created → compile/link error, not a device issue.
+      log_err "    COMPILE ERROR: $app / $test_name (exit $run_failed)"
+      log_err "    Last 10 lines of $run_log:"
+      tail -10 "$run_log" | while IFS= read -r line; do log_err "      $line"; done
+      log_err "    This is a code/config error — device does NOT need reset."
+      log_err "    Fix the error and re-run.  Stopping now."
+      echo "$app,$test_name,$seq_len,$num_seq,$repeat,$cpg,$pod_unique,$speed,COMPILE_ERROR,,,,,," >> "$CSV"
+    else
+      # Binary ran but exited non-zero — runtime failure, reset device.
+      log_err "    RUNTIME FAILED (exit $run_failed): $app / $test_name"
+      log_err "    Last 10 lines of $run_log:"
+      tail -10 "$run_log" | while IFS= read -r line; do log_err "      $line"; done
+      echo "$app,$test_name,$seq_len,$num_seq,$repeat,$cpg,$pod_unique,$speed,FAILED,,,,,," >> "$CSV"
+      reset_device "$app / $test_name runtime failure"
     fi
+    exit 1
   fi
 
   # ── Extract timing ─────────────────────────────────────────────────────────

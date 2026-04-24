@@ -1,29 +1,42 @@
 # sw/2d: 2D systolic Smith-Waterman.
-# All 16×8 = 128 tiles operate as one anti-diagonal wavefront; each tile owns a
-# QRY_CORE×REF_CORE submatrix.  dp array lives in DMEM: (QRY_CORE+1)*(REF_CORE+1)*4 bytes.
+# Each tile owns a QRY_CORE × REF_CORE DMEM submatrix; DMEM holds TWO double-buffered
+# buffer_t structs.  Budget = 4096 bytes.
 #
-# DMEM budget (4 KB):
-#   seq-len=32:  QRY=4,  REF=2  → 60 B   ✓
-#   seq-len=64:  QRY=8,  REF=4  → 180 B  ✓
-#   seq-len=128: QRY=16, REF=8  → 612 B  ✓
-#   seq-len=256: QRY=32, REF=16 → 2244 B ✓
-#   seq-len=512: QRY=64, REF=32 → 8580 B ✗
+#   seq-len  QRY  REF   1×buf    2×buf   status
+#        32    4    2     ~80 B   ~160 B  ✓
+#        64    8    4    ~180 B   ~360 B  ✓
+#       128   16    8    ~612 B  ~1224 B  ✓
+#       192   24   12   ~1300 B  ~2600 B  ✓
+#       256   32   16   ~2340 B  ~4680 B  ✗ OVERFLOW
 #
-# Parameters:
-#   seq-len_L         = sequence length; max 256 (DMEM limit)
-#   num-seq_N         = unique sequences per pod; max = 1048576 / seq-len
-#   repeat_R          = repeat factor for longer runtime
-#   pod-unique-data_1 = each pod gets a distinct 1/num_pods data slice
+# Max seq_len = 192.
+#
+# Timing baseline (measured on hardware):
+#   seq-len=128, num-seq=8192, repeat=16 → 0.759s
+#   → time ∝ repeat × seq_len (with num_seq×seq_len = 1MB constant)
+#   → to get ~20s: repeat = 20 / (0.759/16 × seq_len/128)
+#
+# FASTA constraint: num_seq × seq_len ≤ 1,048,576 bytes → num_seq = 1M / seq_len
 
-# --- Sequence-length sweep (shared data, N*L = 1 MB) ---
-TESTS += seq-len_32__num-seq_32768__repeat_64
-TESTS += seq-len_64__num-seq_16384__repeat_32
-TESTS += seq-len_128__num-seq_8192__repeat_16
-TESTS += seq-len_256__num-seq_4096__repeat_8
+# --- Sequence-length sweep (shared data, num_seq × seq_len = 1 MB) ---
+#
+#   seq_len  num_seq  target_time  → repeat
+#        32    32768  ~24s         → 2048
+#        64    16384  ~24s         → 1024
+#       128     8192  ~24s         →  512
+#       192     5461  ~27s         → 1024  (5461 = floor(1M/192); round down to 5120)
+#
+TESTS += seq-len_32__num-seq_32768__repeat_2048
+TESTS += seq-len_64__num-seq_16384__repeat_1024
+TESTS += seq-len_128__num-seq_8192__repeat_512
+TESTS += seq-len_192__num-seq_5120__repeat_1024
 
 # --- Shared vs unique pod data (A/B pairs) ---
-# num-seq=512 at seq-len=256 keeps each pod's slice to 128 kB (< 1 MB / 8 pods).
-TESTS += seq-len_128__num-seq_1024__repeat_16
-TESTS += seq-len_128__num-seq_1024__repeat_16__pod-unique-data_1
-TESTS += seq-len_256__num-seq_512__repeat_8
-TESTS += seq-len_256__num-seq_512__repeat_8__pod-unique-data_1
+# num_seq chosen so pod-unique slice fits in FASTA: num_seq × num_pods × seq_len ≤ 1MB
+#   seq-len=128: num_seq = 1024  (1024×8×128 = 1MB)
+#   seq-len=192: num_seq = 640   (640×8×192 = 983040 ≤ 1MB)
+# Repeat scaled to hit ~24s (fewer sequences → higher repeat).
+TESTS += seq-len_128__num-seq_1024__repeat_4096
+TESTS += seq-len_128__num-seq_1024__repeat_4096__pod-unique-data_1
+TESTS += seq-len_192__num-seq_640__repeat_4096
+TESTS += seq-len_192__num-seq_640__repeat_4096__pod-unique-data_1
