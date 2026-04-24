@@ -64,9 +64,11 @@ declare -A APP_DIRS=(
 # both hang — investigate separately).
 FULL_APPS=(sw/1d sw/2d nw/naive nw/baseline dummy/roofline radix_sort nw/efficient)
 # DEFAULT_APPS: the apps that currently work — what the overnight run uses.
-# Drop nw/baseline and nw/efficient from the nightly sweep until their hangs
-# are fixed; keep them in FULL_APPS so they're easy to re-enable.
-DEFAULT_APPS=(sw/1d sw/2d nw/naive dummy/roofline radix_sort)
+# Dropped from nightly sweep (kept in FULL_APPS for easy re-enable):
+#   - nw/baseline: hangs on hardware even at repeat=1 (unclear why vs sw/1d)
+#   - nw/efficient: Hirschberg inter-sequence hang persists after reset fix
+#   - radix_sort: compile still broken after multiple fixes; needs more work
+DEFAULT_APPS=(sw/1d sw/2d nw/naive dummy/roofline)
 
 # Which apps to run (default: DEFAULT_APPS in order).
 if [ $# -gt 0 ]; then
