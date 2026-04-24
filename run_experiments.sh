@@ -38,7 +38,9 @@ mkdir -p "$OUT_DIR"
 UNIT_ID="${UNIT_ID:-2}"
 
 # Per-test timeout (seconds). If exceeded, the run is killed and the device reset.
-TIMEOUT="${TIMEOUT:-60}"
+# 180s accommodates slow-mode (core clock ~32x slower): fast-mode ~20s tests
+# run ~32s at slow; heavy roofline tests that clamp to repeat=1 can reach ~100s.
+TIMEOUT="${TIMEOUT:-180}"
 
 # Speed label: "fast" for normal clock, "slow" for after cool_down (32x slower).
 # Set SLOW_MODE=1 to label results as slow (you must run cool_down manually first).
