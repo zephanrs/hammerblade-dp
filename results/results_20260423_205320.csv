@@ -1,0 +1,10 @@
+app,test_name,seq_len,num_seq,repeat,cpg,pod_unique_data,speed,kernel_time_sec,gcups,arith_intensity_ops_per_byte,ops_per_elem,n_elems,achieved_bw_GB_s,achieved_gops_s
+sw/2d,seq-len_128__num-seq_1024__repeat_4096,128,1024,4096,8,0,fast,18.774831415,3.6602,320.0,,,,
+sw/2d,seq-len_128__num-seq_1024__repeat_4096__pod-unique-data_1,128,1024,4096,8,1,fast,18.784295243,3.6583,320.0,,,,
+sw/2d,seq-len_128__num-seq_8192__repeat_512,128,8192,512,8,0,fast,22.215931041,3.0933,320.0,,,,
+sw/2d,seq-len_192__num-seq_4096__repeat_512,192,4096,512,8,0,fast,22.144819234,3.4911,480.0,,,,
+sw/2d,seq-len_192__num-seq_640__repeat_4096,192,640,4096,8,0,fast,25.381936939,3.8073,480.0,,,,
+sw/2d,seq-len_192__num-seq_640__repeat_4096__pod-unique-data_1,192,640,4096,8,1,fast,25.386121068,3.8067,480.0,,,,
+sw/2d,seq-len_32__num-seq_32768__repeat_2048,32,32768,2048,8,0,fast,85.358234760,0.8051,80.0,,,,
+sw/2d,seq-len_64__num-seq_16384__repeat_1024,64,16384,1024,8,0,fast,36.320140506,1.8920,160.0,,,,
+nw/efficient,seq-len_1024__num-seq_1024__repeat_2,1024,1024,2,8,0,fast,COMPILE_ERROR,,,,,,

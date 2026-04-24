@@ -1,0 +1,24 @@
+[21:06:50] Starting experiment run at Thu Apr 23 21:06:50 PDT 2026
+[21:06:50] CSV output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260423_210650.csv
+[21:06:50] Log output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260423_210650.log
+[21:06:50] Apps to run : sw/2d nw/efficient dummy/roofline sw/1d nw/baseline nw/naive
+[21:06:50] UNIT_ID     : 2
+[21:06:50] Speed label : fast
+[21:06:50] Timeout     : 3600s per test
+
+
+[21:06:50] [0;36m=== sw/2d ===[0m
+[21:06:50]   Regenerating test directories for sw/2d...
+[21:06:50]   Found 8 test(s)
+[21:07:12] [0;32mOK[0m      sw/2d / seq-len_128__num-seq_1024__repeat_4096  time=18.778857172s  gcups=3.6594
+[21:07:33] [0;32mOK[0m      sw/2d / seq-len_128__num-seq_1024__repeat_4096__pod-unique-data_1  time=18.786173113s  gcups=3.6580
+[21:07:59] [0;32mOK[0m      sw/2d / seq-len_128__num-seq_8192__repeat_512  time=22.215977047s  gcups=3.0932
+[21:08:24] [0;32mOK[0m      sw/2d / seq-len_192__num-seq_4096__repeat_512  time=22.146842558s  gcups=3.4908
+[21:08:53] [0;32mOK[0m      sw/2d / seq-len_192__num-seq_640__repeat_4096  time=25.383056513s  gcups=3.8071
+[21:09:22] [0;32mOK[0m      sw/2d / seq-len_192__num-seq_640__repeat_4096__pod-unique-data_1  time=25.386379051s  gcups=3.8066
+[21:09:48] [0;32mOK[0m      sw/2d / seq-len_32__num-seq_32768__repeat_512  time=21.390932658s  gcups=0.8031
+[21:10:09] [0;32mOK[0m      sw/2d / seq-len_64__num-seq_16384__repeat_512  time=18.193063388s  gcups=1.8886
+
+[21:10:09] [0;36m=== nw/efficient ===[0m
+[21:10:09]   Regenerating test directories for nw/efficient...
+[21:10:09]   Found 4 test(s)

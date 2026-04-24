@@ -1,0 +1,20 @@
+[23:02:28] Starting experiment run at Thu Apr 23 23:02:28 PDT 2026
+[23:02:28] CSV output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260423_230228.csv
+[23:02:28] Log output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260423_230228.log
+[23:02:28] Apps to run : radix_sort
+[23:02:28] UNIT_ID     : 2
+[23:02:28] Speed label : fast
+[23:02:28] Timeout     : 60s per test
+
+
+[23:02:28] [0;36m=== radix_sort ===[0m
+[23:02:28]   Regenerating test directories for radix_sort...
+[23:02:28] [0;31mERR[0m    'make generate' failed for radix_sort — check /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/radix_sort/Makefile
+
+
+[23:02:28] [0;36m=== Run complete ===[0m
+[23:02:28] Total tests    : 0
+[23:02:28] Results CSV    : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260423_230228.csv
+[23:02:28] Full log       : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260423_230228.log
+[23:02:28] Passed         : 0
+[23:02:28] Failed/Timeout : 0

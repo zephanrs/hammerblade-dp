@@ -1,0 +1,2 @@
+app,test_name,seq_len,num_seq,repeat,cpg,pod_unique_data,speed,kernel_time_sec,gcups,arith_intensity_ops_per_byte,ops_per_elem,n_elems,achieved_bw_GB_s,achieved_gops_s
+nw/baseline,seq-len_1024__num-seq_1024__repeat_1,1024,1024,1,8,0,fast,TIMEOUT,,,,,,

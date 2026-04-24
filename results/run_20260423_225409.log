@@ -1,0 +1,37 @@
+[22:54:09] Starting experiment run at Thu Apr 23 22:54:09 PDT 2026
+[22:54:09] CSV output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260423_225409.csv
+[22:54:09] Log output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260423_225409.log
+[22:54:09] Apps to run : nw/baseline
+[22:54:09] UNIT_ID     : 2
+[22:54:09] Speed label : fast
+[22:54:09] Timeout     : 60s per test
+
+
+[22:54:09] [0;36m=== nw/baseline ===[0m
+[22:54:09]   Regenerating test directories for nw/baseline...
+[22:54:09]   Found 7 test(s)
+[22:55:09] [1;33mTIMEOUT[0m nw/baseline / seq-len_1024__num-seq_1024__repeat_1 (after 60s) — resetting and continuing
+
+[22:55:09] [0;31mERR[0m  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[22:55:09] [0;31mERR[0m    DEVICE RESET REQUIRED — nw/baseline / seq-len_1024__num-seq_1024__repeat_1 timed out
+[22:55:09] [0;31mERR[0m    Running: cd /cluster_src/reset_half && make reset UNIT_ID=2
+sudo /cluster_src/reset_half/hb_board_v0.5_init.bin 2
+[BSG INFO] checking if init full software directory is valid
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.4375 degree C
+Remote 1 temperature is 29.2500 degree C
+Remote 2 temperature is 29.9375 degree C
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.4375 degree C
+Remote 1 temperature is 29.0625 degree C
+Remote 2 temperature is 29.6875 degree C
+[BSG INFO] cleaning init full software
+[BSG INFO] starting init full software
+[BSG INFO] checking if init full software still running
+[BSG INFO] performing refresh sdr full
+ERROR: Caught SIGINT (Ctrl+C)
+ERROR: killing the background PID
+ERROR: initialization failed
+make: *** [reset] Error 1

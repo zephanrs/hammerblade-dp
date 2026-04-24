@@ -1,0 +1,23 @@
+[20:49:14] Starting experiment run at Thu Apr 23 20:49:14 PDT 2026
+[20:49:14] CSV output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260423_204914.csv
+[20:49:14] Log output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260423_204914.log
+[20:49:14] Apps to run : sw/2d nw/efficient dummy/roofline sw/1d nw/baseline nw/naive
+[20:49:14] UNIT_ID     : 2
+[20:49:14] Speed label : fast
+[20:49:14] Timeout     : 3600s per test
+
+
+[20:49:14] [0;36m=== sw/2d ===[0m
+[20:49:14]   Regenerating test directories for sw/2d...
+[20:49:14]   Found 18 test(s)
+[20:49:15] [0;31mCOMPILE[0m sw/2d / seq-len_128__num-seq_1024__repeat_16 (exit 2 — check /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/sw/2d/seq-len_128__num-seq_1024__repeat_16/run.log)
+         g++ -c -o main.o /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/sw/2d/main.cpp -I/home/zephans/bsg_bladerunner/bsg_replicant/libraries -I/home/zephans/bsg_bladerunner/bsg_replicant/libraries/platforms/bigblade-fpga -std=c++11 -g -Wall -Wno-unused-function -Wno-unused-variable -D_XOPEN_SOURCE=500 -D_BSD_SOURCE -D_DEFAULT_SOURCE -Dbsg_tiles_X=16 -Dbsg_tiles_Y=8 -DNUM_POD_X=4  -DNUM_SEQ=1024 -DSEQ_LEN=128 -DINPUT_REPEAT_FACTOR=16 -DVCS -fPIC -DHB_MC_DEVICE_ID=2
+         /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/sw/2d/main.cpp: In function ‘int sw_multipod(int, char**)’:
+         /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/sw/2d/main.cpp:42:37: error: ‘NUM_POD_Y’ was not declared in this scope
+            const int num_pods  = NUM_POD_X * NUM_POD_Y;   // total pods (X*Y grid)
+                                              ^
+         /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/sw/2d/main.cpp:81:67: warning: narrowing conversion of ‘pod’ from ‘hb_mc_pod_id_t {aka int}’ to ‘uint32_t {aka unsigned int}’ inside { } [-Wnarrowing]
+              uint32_t cuda_argv[CUDA_ARGC] = {d_query, d_ref, d_output, pod};
+                                                                            ^
+         make: *** [main.o] Error 1
+         make: Leaving directory `/home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/sw/2d/seq-len_128__num-seq_1024__repeat_16'

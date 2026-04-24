@@ -1,0 +1,219 @@
+[22:13:46] Starting experiment run at Thu Apr 23 22:13:46 PDT 2026
+[22:13:46] CSV output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260423_221346.csv
+[22:13:46] Log output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260423_221346.log
+[22:13:46] Apps to run : sw/1d sw/2d nw/naive nw/baseline dummy/roofline radix_sort nw/efficient
+[22:13:46] UNIT_ID     : 2
+[22:13:46] Speed label : fast
+[22:13:46] Timeout     : 60s per test
+
+
+[22:13:46] [0;36m=== sw/1d ===[0m
+[22:13:46]   Regenerating test directories for sw/1d...
+[22:13:47]   Found 33 test(s)
+[22:14:07] [0;32mOK[0m      sw/1d / seq-len_1024__num-seq_1024__repeat_64  time=17.720993284s  gcups=3.8779
+[22:14:30] [0;32mOK[0m      sw/1d / seq-len_1024__num-seq_1024__repeat_64__cpg_128  time=21.022248171s  gcups=3.2689
+[22:14:50] [0;32mOK[0m      sw/1d / seq-len_1024__num-seq_1024__repeat_64__cpg_16  time=18.183237296s  gcups=3.7793
+[22:15:10] [0;32mOK[0m      sw/1d / seq-len_1024__num-seq_1024__repeat_64__cpg_4  time=17.565504401s  gcups=3.9122
+[22:15:32] [0;32mOK[0m      sw/1d / seq-len_128__num-seq_8192__repeat_512  time=19.657225118s  gcups=3.4959
+[22:15:52] [0;32mOK[0m      sw/1d / seq-len_128__num-seq_8192__repeat_512__cpg_1  time=17.436269787s  gcups=3.9412
+[22:16:52] [1;33mTIMEOUT[0m sw/1d / seq-len_128__num-seq_8192__repeat_512__cpg_16 (after 60s) — resetting and continuing
+
+[22:16:52] [0;31mERR[0m  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[22:16:52] [0;31mERR[0m    DEVICE RESET REQUIRED — sw/1d / seq-len_128__num-seq_8192__repeat_512__cpg_16 timed out
+[22:16:52] [0;31mERR[0m    Running: cd /cluster_src/reset_half && make reset UNIT_ID=2
+sudo /cluster_src/reset_half/hb_board_v0.5_init.bin 2
+[BSG INFO] checking if init full software directory is valid
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.6250 degree C
+Remote 1 temperature is 29.6250 degree C
+Remote 2 temperature is 30.4375 degree C
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.6250 degree C
+Remote 1 temperature is 29.5625 degree C
+Remote 2 temperature is 30.2500 degree C
+[BSG INFO] cleaning init full software
+[BSG INFO] starting init full software
+[BSG INFO] checking if init full software still running
+[BSG INFO] performing refresh sdr full
+[BSG INFO] finishing init full software
+[BSG INFO] checking if init full software passed
+[BSG INFO] performing refresh sdr init full
+[BSG INFO] cleaning init full software
+[BSG INFO] initialization succeeded
+[22:17:44] [1;33mWARN[0m   Reset command completed.
+[22:17:44] [0;31mERR[0m  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+[22:18:04] [0;32mOK[0m      sw/1d / seq-len_2048__num-seq_512__repeat_32  time=17.542396781s  gcups=3.9173
+[22:18:26] [0;32mOK[0m      sw/1d / seq-len_2048__num-seq_512__repeat_32__cpg_128  time=19.096970721s  gcups=3.5984
+[22:18:46] [0;32mOK[0m      sw/1d / seq-len_2048__num-seq_512__repeat_32__cpg_16  time=17.675267069s  gcups=3.8879
+[22:19:06] [0;32mOK[0m      sw/1d / seq-len_2048__num-seq_512__repeat_32__cpg_8  time=17.550806120s  gcups=3.9155
+[22:19:27] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_4096__repeat_256  time=18.720842479s  gcups=3.6707
+[22:19:47] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_4096__repeat_256__cpg_1  time=17.243831943s  gcups=3.9852
+[22:20:22] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_4096__repeat_256__cpg_128  time=33.799362772s  gcups=2.0332
+[22:21:23] [1;33mTIMEOUT[0m sw/1d / seq-len_256__num-seq_4096__repeat_256__cpg_16 (after 60s) — resetting and continuing
+
+[22:21:23] [0;31mERR[0m  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[22:21:23] [0;31mERR[0m    DEVICE RESET REQUIRED — sw/1d / seq-len_256__num-seq_4096__repeat_256__cpg_16 timed out
+[22:21:23] [0;31mERR[0m    Running: cd /cluster_src/reset_half && make reset UNIT_ID=2
+sudo /cluster_src/reset_half/hb_board_v0.5_init.bin 2
+[BSG INFO] checking if init full software directory is valid
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.8125 degree C
+Remote 1 temperature is 30.2500 degree C
+Remote 2 temperature is 30.8750 degree C
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.8125 degree C
+Remote 1 temperature is 30.0625 degree C
+Remote 2 temperature is 30.6875 degree C
+[BSG INFO] cleaning init full software
+[BSG INFO] starting init full software
+[BSG INFO] checking if init full software still running
+[BSG INFO] performing refresh sdr full
+[BSG INFO] finishing init full software
+[BSG INFO] checking if init full software passed
+[BSG INFO] performing refresh sdr init full
+[BSG INFO] cleaning init full software
+[BSG INFO] initialization succeeded
+[22:21:34] [1;33mWARN[0m   Reset command completed.
+[22:21:34] [0;31mERR[0m  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+[22:21:55] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_512__repeat_2048  time=18.394994206s  gcups=3.7358
+[22:22:14] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_512__repeat_2048__cpg_1  time=17.171262816s  gcups=4.0020
+[22:22:46] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_512__repeat_2048__cpg_128  time=29.671462038s  gcups=2.3160
+[22:23:17] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_512__repeat_2048__cpg_128__pod-unique-data_1  time=29.680395289s  gcups=2.3153
+[22:23:38] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_512__repeat_2048__cpg_16  time=18.867215534s  gcups=3.6423
+[22:24:38] [1;33mTIMEOUT[0m sw/1d / seq-len_256__num-seq_512__repeat_2048__cpg_16__pod-unique-data_1 (after 60s) — resetting and continuing
+
+[22:24:38] [0;31mERR[0m  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[22:24:38] [0;31mERR[0m    DEVICE RESET REQUIRED — sw/1d / seq-len_256__num-seq_512__repeat_2048__cpg_16__pod-unique-data_1 timed out
+[22:24:38] [0;31mERR[0m    Running: cd /cluster_src/reset_half && make reset UNIT_ID=2
+sudo /cluster_src/reset_half/hb_board_v0.5_init.bin 2
+[BSG INFO] checking if init full software directory is valid
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.8750 degree C
+Remote 1 temperature is 30.3125 degree C
+Remote 2 temperature is 30.9375 degree C
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.8750 degree C
+Remote 1 temperature is 30.2500 degree C
+Remote 2 temperature is 30.8125 degree C
+[BSG INFO] cleaning init full software
+[BSG INFO] starting init full software
+[BSG INFO] checking if init full software still running
+[BSG INFO] performing refresh sdr full
+[BSG INFO] finishing init full software
+[BSG INFO] checking if init full software passed
+[BSG INFO] performing refresh sdr init full
+[BSG INFO] cleaning init full software
+[BSG INFO] initialization succeeded
+[22:24:50] [1;33mWARN[0m   Reset command completed.
+[22:24:50] [0;31mERR[0m  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+[22:25:09] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_512__repeat_2048__cpg_1__pod-unique-data_1  time=17.175335037s  gcups=4.0011
+[22:25:30] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_512__repeat_2048__pod-unique-data_1  time=18.399336449s  gcups=3.7349
+[22:26:12] [0;32mOK[0m      sw/1d / seq-len_32__num-seq_32768__repeat_2048  time=29.694892680s  gcups=2.3142
+[22:26:44] [0;32mOK[0m      sw/1d / seq-len_32__num-seq_32768__repeat_2048__cpg_1  time=19.015550452s  gcups=3.6139
+[22:27:35] [0;32mOK[0m      sw/1d / seq-len_32__num-seq_32768__repeat_2048__cpg_16  time=38.457442135s  gcups=1.7869
+[22:28:35] [1;33mTIMEOUT[0m sw/1d / seq-len_512__num-seq_2048__repeat_128 (after 60s) — resetting and continuing
+
+[22:28:35] [0;31mERR[0m  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[22:28:35] [0;31mERR[0m    DEVICE RESET REQUIRED — sw/1d / seq-len_512__num-seq_2048__repeat_128 timed out
+[22:28:35] [0;31mERR[0m    Running: cd /cluster_src/reset_half && make reset UNIT_ID=2
+sudo /cluster_src/reset_half/hb_board_v0.5_init.bin 2
+[BSG INFO] checking if init full software directory is valid
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.6875 degree C
+Remote 1 temperature is 30.0000 degree C
+Remote 2 temperature is 30.5625 degree C
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.6875 degree C
+Remote 1 temperature is 29.9375 degree C
+Remote 2 temperature is 30.5000 degree C
+[BSG INFO] cleaning init full software
+[BSG INFO] starting init full software
+[BSG INFO] checking if init full software still running
+[BSG INFO] performing refresh sdr full
+[BSG INFO] finishing init full software
+[BSG INFO] checking if init full software passed
+[BSG INFO] performing refresh sdr init full
+[BSG INFO] cleaning init full software
+[BSG INFO] initialization succeeded
+[22:28:46] [1;33mWARN[0m   Reset command completed.
+[22:28:46] [0;31mERR[0m  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+[22:29:14] [0;32mOK[0m      sw/1d / seq-len_512__num-seq_2048__repeat_128__cpg_128  time=26.076354039s  gcups=2.6353
+[22:29:35] [0;32mOK[0m      sw/1d / seq-len_512__num-seq_2048__repeat_128__cpg_16  time=18.629129828s  gcups=3.6888
+[22:30:35] [1;33mTIMEOUT[0m sw/1d / seq-len_512__num-seq_2048__repeat_128__cpg_2 (after 60s) — resetting and continuing
+
+[22:30:35] [0;31mERR[0m  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[22:30:35] [0;31mERR[0m    DEVICE RESET REQUIRED — sw/1d / seq-len_512__num-seq_2048__repeat_128__cpg_2 timed out
+[22:30:35] [0;31mERR[0m    Running: cd /cluster_src/reset_half && make reset UNIT_ID=2
+sudo /cluster_src/reset_half/hb_board_v0.5_init.bin 2
+[BSG INFO] checking if init full software directory is valid
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.6875 degree C
+Remote 1 temperature is 29.9375 degree C
+Remote 2 temperature is 30.6250 degree C
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.6875 degree C
+Remote 1 temperature is 29.8125 degree C
+Remote 2 temperature is 30.5000 degree C
+[BSG INFO] cleaning init full software
+[BSG INFO] starting init full software
+[BSG INFO] checking if init full software still running
+[BSG INFO] performing refresh sdr full
+[BSG INFO] finishing init full software
+[BSG INFO] checking if init full software passed
+[BSG INFO] performing refresh sdr init full
+[BSG INFO] cleaning init full software
+[BSG INFO] initialization succeeded
+[22:30:47] [1;33mWARN[0m   Reset command completed.
+[22:30:47] [0;31mERR[0m  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+[22:31:13] [0;32mOK[0m      sw/1d / seq-len_64__num-seq_16384__repeat_1024  time=21.995389585s  gcups=3.1243
+[22:31:36] [0;32mOK[0m      sw/1d / seq-len_64__num-seq_16384__repeat_1024__cpg_1  time=17.833212105s  gcups=3.8535
+[22:32:08] [0;32mOK[0m      sw/1d / seq-len_64__num-seq_16384__repeat_1024__cpg_16  time=27.643820435s  gcups=2.4859
+
+[22:32:08] [0;36m=== sw/2d ===[0m
+[22:32:08]   Regenerating test directories for sw/2d...
+[22:32:08]   Found 8 test(s)
+[22:32:30] [0;32mOK[0m      sw/2d / seq-len_128__num-seq_1024__repeat_4096  time=18.763386252s  gcups=3.6624
+[22:32:51] [0;32mOK[0m      sw/2d / seq-len_128__num-seq_1024__repeat_4096__pod-unique-data_1  time=18.770238086s  gcups=3.6611
+[22:33:17] [0;32mOK[0m      sw/2d / seq-len_128__num-seq_8192__repeat_512  time=22.213010053s  gcups=3.0937
+[22:33:42] [0;32mOK[0m      sw/2d / seq-len_192__num-seq_4096__repeat_512  time=22.126056359s  gcups=3.4940
+[22:34:11] [0;32mOK[0m      sw/2d / seq-len_192__num-seq_640__repeat_4096  time=25.357573237s  gcups=3.8110
+[22:34:39] [0;32mOK[0m      sw/2d / seq-len_192__num-seq_640__repeat_4096__pod-unique-data_1  time=25.363913006s  gcups=3.8100
+[22:35:05] [0;32mOK[0m      sw/2d / seq-len_32__num-seq_32768__repeat_512  time=21.386619604s  gcups=0.8033
+[22:35:27] [0;32mOK[0m      sw/2d / seq-len_64__num-seq_16384__repeat_512  time=18.192708507s  gcups=1.8887
+
+[22:35:27] [0;36m=== nw/naive ===[0m
+[22:35:27]   Regenerating test directories for nw/naive...
+[22:35:27]   Found 7 test(s)
+[22:36:27] [1;33mTIMEOUT[0m nw/naive / seq-len_1024__num-seq_64__repeat_64 (after 60s) — resetting and continuing
+
+[22:36:27] [0;31mERR[0m  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[22:36:27] [0;31mERR[0m    DEVICE RESET REQUIRED — nw/naive / seq-len_1024__num-seq_64__repeat_64 timed out
+[22:36:27] [0;31mERR[0m    Running: cd /cluster_src/reset_half && make reset UNIT_ID=2
+sudo /cluster_src/reset_half/hb_board_v0.5_init.bin 2
+sudo: timed out reading password
+make: *** [reset] Error 1
+[22:41:29] [0;31mERR[0m    Reset command failed!  You may need to reset manually.
+[22:41:29] [0;31mERR[0m  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+[22:42:29] [1;33mTIMEOUT[0m nw/naive / seq-len_128__num-seq_512__repeat_512 (after 60s) — resetting and continuing
+
+[22:42:29] [0;31mERR[0m  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[22:42:29] [0;31mERR[0m    DEVICE RESET REQUIRED — nw/naive / seq-len_128__num-seq_512__repeat_512 timed out
+[22:42:29] [0;31mERR[0m    Running: cd /cluster_src/reset_half && make reset UNIT_ID=2
+sudo /cluster_src/reset_half/hb_board_v0.5_init.bin 2
+make: *** [reset] Error 1

@@ -1,0 +1,41 @@
+[22:57:09] Starting experiment run at Thu Apr 23 22:57:09 PDT 2026
+[22:57:09] CSV output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260423_225709.csv
+[22:57:09] Log output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260423_225709.log
+[22:57:09] Apps to run : nw/efficient
+[22:57:09] UNIT_ID     : 2
+[22:57:09] Speed label : fast
+[22:57:09] Timeout     : 60s per test
+
+
+[22:57:09] [0;36m=== nw/efficient ===[0m
+[22:57:09]   Regenerating test directories for nw/efficient...
+[22:57:09]   Found 4 test(s)
+[22:58:09] [1;33mTIMEOUT[0m nw/efficient / seq-len_128__num-seq_8192__repeat_1 (after 60s) — resetting and continuing
+
+[22:58:09] [0;31mERR[0m  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[22:58:09] [0;31mERR[0m    DEVICE RESET REQUIRED — nw/efficient / seq-len_128__num-seq_8192__repeat_1 timed out
+[22:58:09] [0;31mERR[0m    Running: cd /cluster_src/reset_half && make reset UNIT_ID=2
+sudo /cluster_src/reset_half/hb_board_v0.5_init.bin 2
+[BSG INFO] checking if init full software directory is valid
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.5000 degree C
+Remote 1 temperature is 29.3750 degree C
+Remote 2 temperature is 30.0000 degree C
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.5000 degree C
+Remote 1 temperature is 29.2500 degree C
+Remote 2 temperature is 29.8125 degree C
+[BSG INFO] cleaning init full software
+[BSG INFO] starting init full software
+[BSG INFO] checking if init full software still running
+[BSG INFO] performing refresh sdr full
+[BSG INFO] finishing init full software
+[BSG INFO] checking if init full software passed
+[BSG INFO] performing refresh sdr init full
+[BSG INFO] cleaning init full software
+[BSG INFO] initialization succeeded
+[22:58:21] [1;33mWARN[0m   Reset command completed.
+[22:58:21] [0;31mERR[0m  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+

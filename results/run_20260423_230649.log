@@ -1,0 +1,23 @@
+[23:06:49] Starting experiment run at Thu Apr 23 23:06:49 PDT 2026
+[23:06:49] CSV output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260423_230649.csv
+[23:06:49] Log output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260423_230649.log
+[23:06:49] Apps to run : radix_sort
+[23:06:49] UNIT_ID     : 2
+[23:06:49] Speed label : fast
+[23:06:49] Timeout     : 60s per test
+
+
+[23:06:49] [0;36m=== radix_sort ===[0m
+[23:06:49]   Regenerating test directories for radix_sort...
+[23:06:49]   Found 1 test(s)
+[23:06:49] [0;31mCOMPILE[0m radix_sort / radix_sort_16384 (exit 2 — check /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/radix_sort/radix_sort_16384/run.log)
+            ^
+         /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/radix_sort/main.c:104:15: error: ‘false’ undeclared (first use in this function)
+            bool fail = false;
+                        ^
+         /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/radix_sort/main.c:104:15: note: each undeclared identifier is reported only once for each function it appears in
+         /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/radix_sort/main.c:120:16: error: ‘true’ undeclared (first use in this function)
+                  fail = true;
+                         ^
+         make: *** [main.o] Error 1
+         make: Leaving directory `/home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/radix_sort/radix_sort_16384'

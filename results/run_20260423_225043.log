@@ -1,0 +1,19 @@
+[22:50:43] Starting experiment run at Thu Apr 23 22:50:43 PDT 2026
+[22:50:43] CSV output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260423_225043.csv
+[22:50:43] Log output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260423_225043.log
+[22:50:43] Apps to run : nw/baseline
+[22:50:43] UNIT_ID     : 2
+[22:50:43] Speed label : fast
+[22:50:43] Timeout     : 60s per test
+
+
+[22:50:43] [0;36m=== nw/baseline ===[0m
+[22:50:43]   Regenerating test directories for nw/baseline...
+[22:50:43]   Found 7 test(s)
+[22:51:43] [1;33mTIMEOUT[0m nw/baseline / seq-len_1024__num-seq_1024__repeat_64 (after 60s) — resetting and continuing
+
+[22:51:43] [0;31mERR[0m  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[22:51:43] [0;31mERR[0m    DEVICE RESET REQUIRED — nw/baseline / seq-len_1024__num-seq_1024__repeat_64 timed out
+[22:51:43] [0;31mERR[0m    Running: cd /cluster_src/reset_half && make reset UNIT_ID=2
+sudo /cluster_src/reset_half/hb_board_v0.5_init.bin 2
+make: *** [reset] Error 1

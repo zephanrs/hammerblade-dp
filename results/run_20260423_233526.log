@@ -1,0 +1,92 @@
+[23:35:26] Starting experiment run at Thu Apr 23 23:35:26 PDT 2026
+[23:35:26] CSV output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260423_233526.csv
+[23:35:26] Log output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260423_233526.log
+[23:35:26] Apps to run : sw/1d sw/2d dummy/roofline
+[23:35:26] UNIT_ID     : 2
+[23:35:26] Speed label : fast
+[23:35:26] Timeout     : 600s per test
+
+
+[23:35:26] [0;36m=== sw/1d ===[0m
+[23:35:26]   Regenerating test directories for sw/1d...
+[23:35:26]   Found 28 test(s)
+[23:35:46] [0;32mOK[0m      sw/1d / seq-len_1024__num-seq_1024__repeat_64  time=17.716151111s  gcups=3.8789
+[23:36:09] [0;32mOK[0m      sw/1d / seq-len_1024__num-seq_1024__repeat_64__cpg_128  time=21.015973496s  gcups=3.2699
+[23:36:29] [0;32mOK[0m      sw/1d / seq-len_1024__num-seq_1024__repeat_64__cpg_16  time=18.173393470s  gcups=3.7813
+[23:36:49] [0;32mOK[0m      sw/1d / seq-len_1024__num-seq_1024__repeat_64__cpg_4  time=17.561359745s  gcups=3.9131
+[23:37:12] [0;32mOK[0m      sw/1d / seq-len_128__num-seq_8192__repeat_512  time=19.649686749s  gcups=3.4972
+[23:37:32] [0;32mOK[0m      sw/1d / seq-len_128__num-seq_8192__repeat_512__cpg_1  time=17.433782250s  gcups=3.9417
+[23:37:52] [0;32mOK[0m      sw/1d / seq-len_2048__num-seq_512__repeat_32  time=17.552711585s  gcups=3.9150
+[23:38:14] [0;32mOK[0m      sw/1d / seq-len_2048__num-seq_512__repeat_32__cpg_128  time=19.106667604s  gcups=3.5966
+[23:38:34] [0;32mOK[0m      sw/1d / seq-len_2048__num-seq_512__repeat_32__cpg_16  time=17.681461288s  gcups=3.8865
+[23:38:55] [0;32mOK[0m      sw/1d / seq-len_2048__num-seq_512__repeat_32__cpg_8  time=17.556419346s  gcups=3.9142
+[23:39:15] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_4096__repeat_256  time=18.724920661s  gcups=3.6699
+[23:39:35] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_4096__repeat_256__cpg_1  time=17.247638123s  gcups=3.9843
+[23:40:11] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_4096__repeat_256__cpg_128  time=33.799021491s  gcups=2.0332
+[23:40:31] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_512__repeat_2048  time=18.406995655s  gcups=3.7333
+[23:40:51] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_512__repeat_2048__cpg_1  time=17.179794720s  gcups=4.0000
+[23:41:22] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_512__repeat_2048__cpg_128  time=29.682431768s  gcups=2.3152
+[23:41:54] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_512__repeat_2048__cpg_128__pod-unique-data_1  time=29.687545788s  gcups=2.3148
+[23:42:14] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_512__repeat_2048__cpg_16  time=18.869980197s  gcups=3.6417
+[23:42:34] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_512__repeat_2048__cpg_1__pod-unique-data_1  time=17.189600252s  gcups=3.9977
+[23:42:54] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_512__repeat_2048__pod-unique-data_1  time=18.410974296s  gcups=3.7325
+[23:43:37] [0;32mOK[0m      sw/1d / seq-len_32__num-seq_32768__repeat_2048  time=29.706404861s  gcups=2.3133
+[23:44:08] [0;32mOK[0m      sw/1d / seq-len_32__num-seq_32768__repeat_2048__cpg_1  time=19.030826292s  gcups=3.6110
+[23:44:59] [0;32mOK[0m      sw/1d / seq-len_32__num-seq_32768__repeat_2048__cpg_16  time=38.479237127s  gcups=1.7859
+[23:45:27] [0;32mOK[0m      sw/1d / seq-len_512__num-seq_2048__repeat_128__cpg_128  time=26.093643625s  gcups=2.6336
+[23:45:48] [0;32mOK[0m      sw/1d / seq-len_512__num-seq_2048__repeat_128__cpg_16  time=18.638694195s  gcups=3.6869
+[23:46:14] [0;32mOK[0m      sw/1d / seq-len_64__num-seq_16384__repeat_1024  time=22.013275590s  gcups=3.1217
+[23:46:37] [0;32mOK[0m      sw/1d / seq-len_64__num-seq_16384__repeat_1024__cpg_1  time=17.852223489s  gcups=3.8494
+[23:47:09] [0;32mOK[0m      sw/1d / seq-len_64__num-seq_16384__repeat_1024__cpg_16  time=27.655431474s  gcups=2.4848
+
+[23:47:09] [0;36m=== sw/2d ===[0m
+[23:47:09]   Regenerating test directories for sw/2d...
+[23:47:09]   Found 8 test(s)
+[23:47:31] [0;32mOK[0m      sw/2d / seq-len_128__num-seq_1024__repeat_4096  time=18.768745229s  gcups=3.6614
+[23:47:52] [0;32mOK[0m      sw/2d / seq-len_128__num-seq_1024__repeat_4096__pod-unique-data_1  time=18.776909738s  gcups=3.6598
+[23:48:18] [0;32mOK[0m      sw/2d / seq-len_128__num-seq_8192__repeat_512  time=22.214339996s  gcups=3.0935
+[23:48:43] [0;32mOK[0m      sw/2d / seq-len_192__num-seq_4096__repeat_512  time=22.136914556s  gcups=3.4923
+[23:49:12] [0;32mOK[0m      sw/2d / seq-len_192__num-seq_640__repeat_4096  time=25.362116331s  gcups=3.8103
+[23:49:40] [0;32mOK[0m      sw/2d / seq-len_192__num-seq_640__repeat_4096__pod-unique-data_1  time=25.364964406s  gcups=3.8099
+[23:50:07] [0;32mOK[0m      sw/2d / seq-len_32__num-seq_32768__repeat_512  time=21.387217531s  gcups=0.8033
+[23:50:28] [0;32mOK[0m      sw/2d / seq-len_64__num-seq_16384__repeat_512  time=18.192404281s  gcups=1.8887
+
+[23:50:28] [0;36m=== dummy/roofline ===[0m
+[23:50:28]   Regenerating test directories for dummy/roofline...
+[23:50:28]   Found 28 test(s)
+[23:50:44] [0;32mOK[0m      dummy/roofline / ops_1024__n-elems_4194304__repeat_66  time=13.713975084s  AI=256.0000 ops/B  bw=0.1615 GB/s  gops=41.3400
+[23:51:06] [0;32mOK[0m      dummy/roofline / ops_12288__n-elems_4194304__repeat_9  time=20.551368794s  AI=3072.0000 ops/B  bw=0.0147 GB/s  gops=45.1412
+[23:51:20] [0;32mOK[0m      dummy/roofline / ops_128__n-elems_4194304__repeat_128  time=11.619915075s  AI=32.0000 ops/B  bw=0.3696 GB/s  gops=11.8279
+[23:51:32] [0;32mOK[0m      dummy/roofline / ops_12__n-elems_4194304__repeat_128  time=10.349770222s  AI=3.0000 ops/B  bw=0.4150 GB/s  gops=1.2449
+[23:51:49] [0;32mOK[0m      dummy/roofline / ops_1536__n-elems_4194304__repeat_52  time=15.058737909s  AI=384.0000 ops/B  bw=0.1159 GB/s  gops=44.4934
+[23:52:12] [0;32mOK[0m      dummy/roofline / ops_16384__n-elems_4194304__repeat_7  time=21.228212653s  AI=4096.0000 ops/B  bw=0.0111 GB/s  gops=45.3205
+[23:52:24] [0;32mOK[0m      dummy/roofline / ops_16__n-elems_4194304__repeat_128  time=10.308707944s  AI=4.0000 ops/B  bw=0.4166 GB/s  gops=1.6665
+[23:52:38] [0;32mOK[0m      dummy/roofline / ops_192__n-elems_4194304__repeat_120  time=11.940038686s  AI=48.0000 ops/B  bw=0.3372 GB/s  gops=16.1870
+[23:52:50] [0;32mOK[0m      dummy/roofline / ops_1__n-elems_4194304__repeat_128  time=10.094281400s  AI=0.2500 ops/B  bw=0.4255 GB/s  gops=0.1064
+[23:53:08] [0;32mOK[0m      dummy/roofline / ops_2048__n-elems_4194304__repeat_36  time=16.524301852s  AI=512.0000 ops/B  bw=0.0731 GB/s  gops=37.4282
+[23:53:20] [0;32mOK[0m      dummy/roofline / ops_24__n-elems_4194304__repeat_128  time=10.292836463s  AI=6.0000 ops/B  bw=0.4173 GB/s  gops=2.5037
+[23:53:34] [0;32mOK[0m      dummy/roofline / ops_256__n-elems_4194304__repeat_112  time=11.933757209s  AI=64.0000 ops/B  bw=0.3149 GB/s  gops=20.1544
+[23:53:46] [0;32mOK[0m      dummy/roofline / ops_2__n-elems_4194304__repeat_128  time=10.163909306s  AI=0.5000 ops/B  bw=0.4226 GB/s  gops=0.2113
+[23:54:05] [0;32mOK[0m      dummy/roofline / ops_3072__n-elems_4194304__repeat_30  time=17.733572152s  AI=768.0000 ops/B  bw=0.0568 GB/s  gops=43.5949
+[23:54:17] [0;32mOK[0m      dummy/roofline / ops_32__n-elems_4194304__repeat_128  time=10.280647004s  AI=8.0000 ops/B  bw=0.4178 GB/s  gops=3.3422
+[23:54:32] [0;32mOK[0m      dummy/roofline / ops_384__n-elems_4194304__repeat_104  time=12.777521662s  AI=96.0000 ops/B  bw=0.2731 GB/s  gops=26.2185
+[23:54:44] [0;32mOK[0m      dummy/roofline / ops_3__n-elems_4194304__repeat_128  time=10.219958773s  AI=0.7500 ops/B  bw=0.4203 GB/s  gops=0.3152
+[23:55:04] [0;32mOK[0m      dummy/roofline / ops_4096__n-elems_4194304__repeat_24  time=18.739377762s  AI=1024.0000 ops/B  bw=0.0430 GB/s  gops=44.0054
+[23:55:16] [0;32mOK[0m      dummy/roofline / ops_48__n-elems_4194304__repeat_128  time=10.286892810s  AI=12.0000 ops/B  bw=0.4175 GB/s  gops=5.0102
+[23:55:28] [0;32mOK[0m      dummy/roofline / ops_4__n-elems_4194304__repeat_128  time=10.302308364s  AI=1.0000 ops/B  bw=0.4169 GB/s  gops=0.4169
+[23:55:43] [0;32mOK[0m      dummy/roofline / ops_512__n-elems_4194304__repeat_92  time=12.500711363s  AI=128.0000 ops/B  bw=0.2469 GB/s  gops=31.6092
+[23:56:03] [0;32mOK[0m      dummy/roofline / ops_6144__n-elems_4194304__repeat_16  time=18.477052193s  AI=1536.0000 ops/B  bw=0.0291 GB/s  gops=44.6302
+[23:56:15] [0;32mOK[0m      dummy/roofline / ops_64__n-elems_4194304__repeat_128  time=10.306927439s  AI=16.0000 ops/B  bw=0.4167 GB/s  gops=6.6673
+[23:56:27] [0;32mOK[0m      dummy/roofline / ops_6__n-elems_4194304__repeat_128  time=10.314487253s  AI=1.5000 ops/B  bw=0.4164 GB/s  gops=0.6246
+[23:56:42] [0;32mOK[0m      dummy/roofline / ops_768__n-elems_4194304__repeat_77  time=12.983399919s  AI=192.0000 ops/B  bw=0.1990 GB/s  gops=38.2079
+[23:57:02] [0;32mOK[0m      dummy/roofline / ops_8192__n-elems_4194304__repeat_12  time=18.393182310s  AI=2048.0000 ops/B  bw=0.0219 GB/s  gops=44.8337
+[23:57:14] [0;32mOK[0m      dummy/roofline / ops_8__n-elems_4194304__repeat_128  time=10.329824096s  AI=2.0000 ops/B  bw=0.4158 GB/s  gops=0.8316
+[23:57:28] [0;32mOK[0m      dummy/roofline / ops_96__n-elems_4194304__repeat_128  time=11.387582450s  AI=24.0000 ops/B  bw=0.3772 GB/s  gops=9.0519
+
+
+[23:57:28] [0;36m=== Run complete ===[0m
+[23:57:28] Total tests    : 64
+[23:57:28] Results CSV    : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260423_233526.csv
+[23:57:28] Full log       : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260423_233526.log
+[23:57:28] Passed         : 64
+[23:57:28] Failed/Timeout : 0

@@ -1,0 +1,26 @@
+BSG INFO: Regression Test: dummy_overhead
+INFO:    Device /dev/xdmaBSG2_user:3 is opened and memory mapped at 0x9c59b000
+INFO:    Device /dev/xdmaBSG2_h2c_0:4 is opened
+INFO:    Device /dev/xdmaBSG2_c2h_0:5 is opened
+WARNING: hb_mc_tracer_trace_enable: Not supported.
+INFO:    Cudalite kernels execution time = 13711 us
+WARNING: hb_mc_tracer_trace_disable: Not supported.
+Loading program for pod 0
+Enqueue Kernel: pod 0
+Loading program for pod 1
+Enqueue Kernel: pod 1
+Loading program for pod 2
+Enqueue Kernel: pod 2
+Loading program for pod 3
+Enqueue Kernel: pod 3
+Loading program for pod 4
+Enqueue Kernel: pod 4
+Loading program for pod 5
+Enqueue Kernel: pod 5
+Loading program for pod 6
+Enqueue Kernel: pod 6
+Loading program for pod 7
+Enqueue Kernel: pod 7
+Launching all pods
+kernel_launch_time_sec=0.077615581
+BSG REGRESSION TEST [32mPASSED[0m
