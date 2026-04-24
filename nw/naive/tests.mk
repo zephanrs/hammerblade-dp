@@ -33,10 +33,12 @@
 # NOTE: host verification reads back the full dp_matrix (DMA cost grows as seq_len²).
 #   For seq_len=1024/2048 the DMA read may take >1 min — this is a one-time cost.
 #
-TESTS += seq-len_32__num-seq_2048__repeat_2048
-TESTS += seq-len_64__num-seq_1024__repeat_1024
-TESTS += seq-len_128__num-seq_512__repeat_512
-TESTS += seq-len_256__num-seq_256__repeat_256
-TESTS += seq-len_512__num-seq_128__repeat_128
-TESTS += seq-len_1024__num-seq_64__repeat_64
-TESTS += seq-len_2048__num-seq_32__repeat_32
+# Smoke-test first: repeat=1 to verify each size runs at all within the 60s
+# timeout. Once timings are known, scale up toward ~20s runs.
+TESTS += seq-len_32__num-seq_2048__repeat_1
+TESTS += seq-len_64__num-seq_1024__repeat_1
+TESTS += seq-len_128__num-seq_512__repeat_1
+TESTS += seq-len_256__num-seq_256__repeat_1
+TESTS += seq-len_512__num-seq_128__repeat_1
+TESTS += seq-len_1024__num-seq_64__repeat_1
+TESTS += seq-len_2048__num-seq_32__repeat_1

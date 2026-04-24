@@ -62,7 +62,11 @@ declare -A APP_DIRS=(
 # Default run order. nw/efficient is last because it's the most fragile
 # (can still hang in Hirschberg inter-sequence sync); we don't want a hang
 # there to block collection of the other apps' data.
-DEFAULT_APPS=(sw/1d sw/2d nw/naive nw/baseline dummy/roofline radix_sort nw/efficient)
+# FULL_APPS is the normal full sweep:
+FULL_APPS=(sw/1d sw/2d nw/naive nw/baseline dummy/roofline radix_sort nw/efficient)
+# TEMPORARY: just run nw/naive to smoke-test repeat=1 and calibrate timings.
+# Revert DEFAULT_APPS=("${FULL_APPS[@]}") once timings are known.
+DEFAULT_APPS=(nw/naive)
 
 # Which apps to run (default: DEFAULT_APPS in order).
 if [ $# -gt 0 ]; then
