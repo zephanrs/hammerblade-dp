@@ -91,6 +91,7 @@ int nw_naive_multipod(int argc, char ** argv) {
   clock_gettime(CLOCK_MONOTONIC, &kernel_end);
   hb_mc_manycore_trace_disable((&device)->mc);
   print_kernel_launch_time(kernel_start, kernel_end);
+  fflush(stdout);
 
 
   // Read from device;

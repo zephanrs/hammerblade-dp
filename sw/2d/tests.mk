@@ -20,17 +20,23 @@
 
 # --- Sequence-length sweep (shared data) ---
 #
-# Target: num_seq × repeat × seq_len² ≈ 70 billion cells → ~20s at ~3.5 GCUPS (measured).
-# num_seq = floor(1M / seq_len), capped to keep all pods within FASTA.
+# Timing NOTE: O(n²) scaling ONLY holds when compute-bound (seq_len ≥ 128).
+# For short sequences the systolic pipeline startup/drain dominates:
+#   overhead ≈ QRY_CORE + REF_CORE steps vs QRY_CORE × REF_CORE useful cells.
+#   At seq_len=32: 4×2=8 cells vs 6 wasted steps → 75% overhead → 4× GCUPS drop.
 #
-#   seq_len  num_seq  repeat   cells (×10⁹)  est_time
-#        32    32768    2048       68.7        ~20s
-#        64    16384    1024       68.7        ~20s
-#       128     8192     512       68.7        ~20s  ← calibrated from hardware (18.7s at 4096rep/1024seq)
-#       192     4096     512       77.3        ~22s
+# Repeats for seq_len=32,64 are calibrated from MEASURED hardware runs:
+#   seq_len=32: repeat=2048 → 85.4s → repeat=512 → 85.4×(512/2048)=21.4s
+#   seq_len=64: repeat=1024 → 36.3s → repeat=512 → 36.3×(512/1024)=18.2s
 #
-TESTS += seq-len_32__num-seq_32768__repeat_2048
-TESTS += seq-len_64__num-seq_16384__repeat_1024
+#   seq_len  num_seq  repeat   cells (×10⁹)  measured/est
+#        32    32768     512       17.2        ~21s  (measured: 85.4s at rep=2048)
+#        64    16384     512       34.4        ~18s  (measured: 36.3s at rep=1024)
+#       128     8192     512       68.7        ~22s  (measured: 22.2s)
+#       192     4096     512       77.3        ~22s  (measured: 22.1s)
+#
+TESTS += seq-len_32__num-seq_32768__repeat_512
+TESTS += seq-len_64__num-seq_16384__repeat_512
 TESTS += seq-len_128__num-seq_8192__repeat_512
 TESTS += seq-len_192__num-seq_4096__repeat_512
 

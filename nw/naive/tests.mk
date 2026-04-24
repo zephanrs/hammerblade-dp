@@ -1,7 +1,30 @@
-TESTS += seq-len_32__num-seq_2048__repeat_64
-TESTS += seq-len_64__num-seq_1024__repeat_32
-TESTS += seq-len_128__num-seq_512__repeat_16
-TESTS += seq-len_256__num-seq_256__repeat_8
-TESTS += seq-len_512__num-seq_128__repeat_4
-TESTS += seq-len_1024__num-seq_64__repeat_2
-TESTS += seq-len_2048__num-seq_32__repeat_1
+# nw/naive: row-by-row 1D systolic NW storing the full O(n²) DP matrix in DRAM.
+#
+# DMEM: only refbuf + H1 + H2 = 9×(REF_CORE+1) bytes.  Safe for all seq_len.
+#
+# DRAM constraint: dp_matrix = num_seq × (seq_len+1)² × 4 bytes per pod.
+#   Keep ≤ ~256 MB per pod (conservative).
+#
+#   seq_len  max_num_seq  used_num_seq  dp_matrix_MB
+#        32        57000          2048           8.9
+#        64        15000          1024          17.3
+#       128         3800           512          34.0
+#       256          950           256          67.9
+#       512          240           128         135.3
+#      1024           60            64         268.9  (border — keep as-is)
+#      2048           15            32         537.0  ← risky; may OOM on some configs
+#
+# NOTE: nw/naive is DRAM-bandwidth-bound (writes (seq_len+1)² ints per sequence).
+#   Repeats below are estimated for ~20s; calibrate after first run.
+#   Expected GCUPS will be much lower than nw/baseline due to BW cost.
+#
+# NOTE: host verification reads back the full dp_matrix (DMA cost grows as seq_len²).
+#   For seq_len=1024/2048 the DMA read may take >1 min — this is a one-time cost.
+#
+TESTS += seq-len_32__num-seq_2048__repeat_2048
+TESTS += seq-len_64__num-seq_1024__repeat_1024
+TESTS += seq-len_128__num-seq_512__repeat_512
+TESTS += seq-len_256__num-seq_256__repeat_256
+TESTS += seq-len_512__num-seq_128__repeat_128
+TESTS += seq-len_1024__num-seq_64__repeat_64
+TESTS += seq-len_2048__num-seq_32__repeat_32
