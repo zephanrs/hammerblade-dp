@@ -1,9 +1,0 @@
-app,test_name,seq_len,num_seq,repeat,cpg,pod_unique_data,speed,kernel_time_sec,gcups,arith_intensity_ops_per_byte,ops_per_elem,n_elems,achieved_bw_GB_s,achieved_gops_s
-sw/2d,seq-len_128__num-seq_1024__repeat_4096,128,1024,4096,8,0,fast,18.778857172,3.6594,320.0,,,,
-sw/2d,seq-len_128__num-seq_1024__repeat_4096__pod-unique-data_1,128,1024,4096,8,1,fast,18.786173113,3.6580,320.0,,,,
-sw/2d,seq-len_128__num-seq_8192__repeat_512,128,8192,512,8,0,fast,22.215977047,3.0932,320.0,,,,
-sw/2d,seq-len_192__num-seq_4096__repeat_512,192,4096,512,8,0,fast,22.146842558,3.4908,480.0,,,,
-sw/2d,seq-len_192__num-seq_640__repeat_4096,192,640,4096,8,0,fast,25.383056513,3.8071,480.0,,,,
-sw/2d,seq-len_192__num-seq_640__repeat_4096__pod-unique-data_1,192,640,4096,8,1,fast,25.386379051,3.8066,480.0,,,,
-sw/2d,seq-len_32__num-seq_32768__repeat_512,32,32768,512,8,0,fast,21.390932658,0.8031,80.0,,,,
-sw/2d,seq-len_64__num-seq_16384__repeat_512,64,16384,512,8,0,fast,18.193063388,1.8886,160.0,,,,

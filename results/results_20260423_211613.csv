@@ -1,2 +1,0 @@
-app,test_name,seq_len,num_seq,repeat,cpg,pod_unique_data,speed,kernel_time_sec,gcups,arith_intensity_ops_per_byte,ops_per_elem,n_elems,achieved_bw_GB_s,achieved_gops_s
-sw/2d,seq-len_128__num-seq_1024__repeat_4096,128,1024,4096,8,0,fast,N/A,N/A,N/A,,,,
