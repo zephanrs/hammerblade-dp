@@ -40,20 +40,18 @@ extern "C" int kernel(int* input, int* output, int pod_id)
   const int n_tiles = bsg_tiles_X * bsg_tiles_Y;
   const int tile_id = __bsg_x * bsg_tiles_Y + __bsg_y;
 
-  for (int rep = 0; rep < REPEAT; rep++) {
-    for (int i = tile_id; i < N_ELEMS; i += n_tiles) {
-      int val = input[i];
+  // Contiguous chunk per tile for good DRAM row-buffer utilization.
+  const int chunk = (N_ELEMS + n_tiles - 1) / n_tiles;
+  const int start = tile_id * chunk;
+  const int end   = (start + chunk < N_ELEMS) ? start + chunk : N_ELEMS;
 
-      // Data-dependent chain: val feeds into every iteration, j prevents
-      // the compiler from finding a closed-form simplification.
+  for (int rep = 0; rep < REPEAT; rep++) {
+    for (int i = start; i < end; i++) {
+      int val = input[i];
       for (int j = 0; j < OPS_PER_ELEM; j++) {
         val = val * 31 + j;
       }
-
-      // Force val to be live across the asm boundary so the compiler cannot
-      // prove the loop result is unused and eliminate it.
       asm volatile("" : "+r"(val));
-
       output[i] = val;
     }
   }

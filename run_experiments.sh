@@ -38,7 +38,7 @@ mkdir -p "$OUT_DIR"
 UNIT_ID="${UNIT_ID:-2}"
 
 # Per-test timeout (seconds). If exceeded, the run is killed and the device reset.
-TIMEOUT="${TIMEOUT:-3600}"
+TIMEOUT="${TIMEOUT:-120}"
 
 # Speed label: "fast" for normal clock, "slow" for after cool_down (32x slower).
 # Set SLOW_MODE=1 to label results as slow (you must run cool_down manually first).
@@ -176,9 +176,10 @@ run_test() {
 
   if [ "$run_failed" -ne 0 ]; then
     if [ "$run_failed" -eq 124 ]; then
-      printf "[%s] ${RED}TIMEOUT${RESET} %s / %s (after ${TIMEOUT}s)\n" "$(ts)" "$app" "$test_name"
+      printf "[%s] ${YELLOW}TIMEOUT${RESET} %s / %s (after ${TIMEOUT}s) — resetting and continuing\n" "$(ts)" "$app" "$test_name"
       echo "$app,$test_name,$seq_len,$num_seq,$repeat,$cpg,$pod_unique,$speed,TIMEOUT,,,,,," >> "$CSV"
       reset_device "$app / $test_name timed out"
+      return  # continue to next test
     elif [ ! -f "$exec_log" ]; then
       printf "[%s] ${RED}COMPILE${RESET} %s / %s (exit %d — check %s)\n" "$(ts)" "$app" "$test_name" "$run_failed" "$run_log"
       tail -10 "$run_log" | while IFS= read -r line; do printf "         %s\n" "$line"; done
