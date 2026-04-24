@@ -1,0 +1,102 @@
+[2026-04-24 07:26:36] === Overnight slow-clock sweep starting ===
+[2026-04-24 07:26:36] Repo root : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs
+[2026-04-24 07:26:36] Apps      : sw/1d sw/2d dummy/roofline
+[2026-04-24 07:26:36] Log file  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/overnight_20260424_072636.log
+[2026-04-24 07:26:36] Assumes   : `make cool-down` was already run interactively.
+
+[07:26:36] Starting experiment run at Fri Apr 24 07:26:36 PDT 2026
+[07:26:36] CSV output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260424_072636.csv
+[07:26:36] Log output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260424_072636.log
+[07:26:36] Apps to run : sw/1d sw/2d dummy/roofline
+[07:26:36] UNIT_ID     : 2
+[07:26:36] Speed label : slow
+[07:26:36] Timeout     : 600s per test
+[07:26:36] [1;33mWARN[0m SLOW_MODE=1: labeling results as 'slow' (assumes cool_down was already run)
+
+
+[07:26:36] [0;36m=== sw/1d ===[0m
+[07:26:36]   Regenerating test directories for sw/1d...
+[07:26:37]   Found 28 test(s)
+[07:27:05] [0;32mOK[0m      sw/1d / seq-len_1024__num-seq_1024__repeat_64  time=25.888727806s  gcups=2.6544
+[07:27:37] [0;32mOK[0m      sw/1d / seq-len_1024__num-seq_1024__repeat_64__cpg_128  time=29.958492318s  gcups=2.2938
+[07:28:06] [0;32mOK[0m      sw/1d / seq-len_1024__num-seq_1024__repeat_64__cpg_16  time=26.249647149s  gcups=2.6179
+[07:28:34] [0;32mOK[0m      sw/1d / seq-len_1024__num-seq_1024__repeat_64__cpg_4  time=25.698004144s  gcups=2.6741
+[07:29:05] [0;32mOK[0m      sw/1d / seq-len_128__num-seq_8192__repeat_512  time=29.046784261s  gcups=2.3658
+[07:29:34] [0;32mOK[0m      sw/1d / seq-len_128__num-seq_8192__repeat_512__cpg_1  time=26.401691341s  gcups=2.6028
+[07:29:54] [0;32mOK[0m      sw/1d / seq-len_2048__num-seq_512__repeat_32  time=17.185659414s  gcups=3.9987
+[07:30:15] [0;32mOK[0m      sw/1d / seq-len_2048__num-seq_512__repeat_32__cpg_128  time=18.465489634s  gcups=3.7215
+[07:30:35] [0;32mOK[0m      sw/1d / seq-len_2048__num-seq_512__repeat_32__cpg_16  time=17.301475616s  gcups=3.9719
+[07:30:55] [0;32mOK[0m      sw/1d / seq-len_2048__num-seq_512__repeat_32__cpg_8  time=17.183679593s  gcups=3.9991
+[07:31:24] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_4096__repeat_256  time=26.971620769s  gcups=2.5478
+[07:31:52] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_4096__repeat_256__cpg_1  time=25.175982252s  gcups=2.7296
+[07:32:37] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_4096__repeat_256__cpg_128  time=43.797154155s  gcups=1.5690
+[07:33:08] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_512__repeat_2048  time=28.657317866s  gcups=2.3980
+[07:33:37] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_512__repeat_2048__cpg_1  time=26.733504309s  gcups=2.5705
+[07:34:25] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_512__repeat_2048__cpg_128  time=46.033207271s  gcups=1.4928
+[07:35:12] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_512__repeat_2048__cpg_128__pod-unique-data_1  time=46.030288159s  gcups=1.4929
+[07:35:43] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_512__repeat_2048__cpg_16  time=29.352017877s  gcups=2.3412
+[07:36:12] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_512__repeat_2048__cpg_1__pod-unique-data_1  time=26.744544623s  gcups=2.5695
+[07:36:43] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_512__repeat_2048__pod-unique-data_1  time=28.658909168s  gcups=2.3978
+[07:37:26] [0;32mOK[0m      sw/1d / seq-len_32__num-seq_32768__repeat_2048  time=39.868394191s  gcups=1.7237
+[07:37:57] [0;32mOK[0m      sw/1d / seq-len_32__num-seq_32768__repeat_2048__cpg_1  time=27.930066368s  gcups=2.4604
+[07:38:49] [0;32mOK[0m      sw/1d / seq-len_32__num-seq_32768__repeat_2048__cpg_16  time=48.263945051s  gcups=1.4238
+[07:39:27] [0;32mOK[0m      sw/1d / seq-len_512__num-seq_2048__repeat_128__cpg_128  time=36.112673234s  gcups=1.9029
+[07:39:56] [0;32mOK[0m      sw/1d / seq-len_512__num-seq_2048__repeat_128__cpg_16  time=26.972659261s  gcups=2.5477
+[07:40:30] [0;32mOK[0m      sw/1d / seq-len_64__num-seq_16384__repeat_1024  time=31.985945281s  gcups=2.1484
+[07:41:00] [0;32mOK[0m      sw/1d / seq-len_64__num-seq_16384__repeat_1024__cpg_1  time=27.237447223s  gcups=2.5230
+[07:41:41] [0;32mOK[0m      sw/1d / seq-len_64__num-seq_16384__repeat_1024__cpg_16  time=39.109404774s  gcups=1.7571
+
+[07:41:41] [0;36m=== sw/2d ===[0m
+[07:41:41]   Regenerating test directories for sw/2d...
+[07:41:41]   Found 8 test(s)
+[07:42:13] [0;32mOK[0m      sw/2d / seq-len_128__num-seq_1024__repeat_4096  time=28.991607422s  gcups=2.3703
+[07:42:44] [0;32mOK[0m      sw/2d / seq-len_128__num-seq_1024__repeat_4096__pod-unique-data_1  time=28.991711447s  gcups=2.3703
+[07:43:15] [0;32mOK[0m      sw/2d / seq-len_128__num-seq_8192__repeat_512  time=28.768642914s  gcups=2.3887
+[07:43:49] [0;32mOK[0m      sw/2d / seq-len_192__num-seq_4096__repeat_512  time=31.188978108s  gcups=2.4787
+[07:44:32] [0;32mOK[0m      sw/2d / seq-len_192__num-seq_640__repeat_4096  time=39.402886606s  gcups=2.4525
+[07:45:14] [0;32mOK[0m      sw/2d / seq-len_192__num-seq_640__repeat_4096__pod-unique-data_1  time=39.410854981s  gcups=2.4520
+[07:45:29] [1;33mSHORT[0m   sw/2d / seq-len_32__num-seq_32768__repeat_512  time=12.348190836s  gcups=1.3913  (< 15s)
+[07:45:48] [0;32mOK[0m      sw/2d / seq-len_64__num-seq_16384__repeat_512  time=17.345515514s  gcups=1.9809
+
+[07:45:48] [0;36m=== dummy/roofline ===[0m
+[07:45:48]   Regenerating test directories for dummy/roofline...
+[07:45:49]   Found 28 test(s)
+[07:46:10] [0;32mOK[0m      dummy/roofline / ops_1024__n-elems_4194304__repeat_66  time=18.071479509s  AI=256.0000 ops/B  bw=0.0056 GB/s  gops=1.4260
+[07:47:23] [0;32mOK[0m      dummy/roofline / ops_12288__n-elems_4194304__repeat_9  time=70.089019368s  AI=3072.0000 ops/B  bw=0.0005 GB/s  gops=1.4707
+[07:47:30] [0;32mOK[0m      dummy/roofline / ops_128__n-elems_4194304__repeat_128  time=5.135537765s  AI=32.0000 ops/B  bw=0.0392 GB/s  gops=1.2545
+[07:47:36] [0;32mOK[0m      dummy/roofline / ops_12__n-elems_4194304__repeat_128  time=2.576247507s  AI=3.0000 ops/B  bw=0.0781 GB/s  gops=0.2344
+[07:47:56] [0;32mOK[0m      dummy/roofline / ops_1536__n-elems_4194304__repeat_52  time=17.897966723s  AI=384.0000 ops/B  bw=0.0037 GB/s  gops=1.4398
+[07:49:33] [0;32mOK[0m      dummy/roofline / ops_16384__n-elems_4194304__repeat_7  time=93.361134377s  AI=4096.0000 ops/B  bw=0.0004 GB/s  gops=1.4721
+[07:49:38] [0;32mOK[0m      dummy/roofline / ops_16__n-elems_4194304__repeat_128  time=2.707168508s  AI=4.0000 ops/B  bw=0.0744 GB/s  gops=0.2975
+[07:49:48] [0;32mOK[0m      dummy/roofline / ops_192__n-elems_4194304__repeat_120  time=7.153166661s  AI=48.0000 ops/B  bw=0.0281 GB/s  gops=1.3510
+[07:49:53] [0;32mOK[0m      dummy/roofline / ops_1__n-elems_4194304__repeat_128  time=2.463352475s  AI=0.2500 ops/B  bw=0.0817 GB/s  gops=0.0204
+[07:50:10] [0;32mOK[0m      dummy/roofline / ops_2048__n-elems_4194304__repeat_36  time=14.238353826s  AI=512.0000 ops/B  bw=0.0024 GB/s  gops=1.2066
+[07:50:16] [0;32mOK[0m      dummy/roofline / ops_24__n-elems_4194304__repeat_128  time=2.776435822s  AI=6.0000 ops/B  bw=0.0725 GB/s  gops=0.4351
+[07:50:26] [0;32mOK[0m      dummy/roofline / ops_256__n-elems_4194304__repeat_112  time=7.811538618s  AI=64.0000 ops/B  bw=0.0215 GB/s  gops=1.3746
+[07:50:31] [0;32mOK[0m      dummy/roofline / ops_2__n-elems_4194304__repeat_128  time=2.461440575s  AI=0.5000 ops/B  bw=0.0818 GB/s  gops=0.0409
+[07:50:52] [0;32mOK[0m      dummy/roofline / ops_3072__n-elems_4194304__repeat_30  time=17.735576128s  AI=768.0000 ops/B  bw=0.0019 GB/s  gops=1.4530
+[07:50:57] [0;32mOK[0m      dummy/roofline / ops_32__n-elems_4194304__repeat_128  time=2.985249129s  AI=8.0000 ops/B  bw=0.0674 GB/s  gops=0.5395
+[07:51:11] [0;32mOK[0m      dummy/roofline / ops_384__n-elems_4194304__repeat_104  time=11.443830493s  AI=96.0000 ops/B  bw=0.0147 GB/s  gops=1.4074
+[07:51:17] [0;32mOK[0m      dummy/roofline / ops_3__n-elems_4194304__repeat_128  time=2.485841921s  AI=0.7500 ops/B  bw=0.0810 GB/s  gops=0.0607
+[07:51:43] [0;32mOK[0m      dummy/roofline / ops_4096__n-elems_4194304__repeat_24  time=23.546015883s  AI=1024.0000 ops/B  bw=0.0014 GB/s  gops=1.4593
+[07:51:49] [0;32mOK[0m      dummy/roofline / ops_48__n-elems_4194304__repeat_128  time=3.377006772s  AI=12.0000 ops/B  bw=0.0596 GB/s  gops=0.7154
+[07:51:54] [0;32mOK[0m      dummy/roofline / ops_4__n-elems_4194304__repeat_128  time=2.494821312s  AI=1.0000 ops/B  bw=0.0807 GB/s  gops=0.0807
+[07:52:09] [0;32mOK[0m      dummy/roofline / ops_512__n-elems_4194304__repeat_92  time=12.317847417s  AI=128.0000 ops/B  bw=0.0109 GB/s  gops=1.3947
+[07:52:47] [0;32mOK[0m      dummy/roofline / ops_6144__n-elems_4194304__repeat_16  time=35.176303089s  AI=1536.0000 ops/B  bw=0.0010 GB/s  gops=1.4652
+[07:52:53] [0;32mOK[0m      dummy/roofline / ops_64__n-elems_4194304__repeat_128  time=3.594723775s  AI=16.0000 ops/B  bw=0.0560 GB/s  gops=0.8961
+[07:52:59] [0;32mOK[0m      dummy/roofline / ops_6__n-elems_4194304__repeat_128  time=2.513608082s  AI=1.5000 ops/B  bw=0.0801 GB/s  gops=0.1201
+[07:53:15] [0;32mOK[0m      dummy/roofline / ops_768__n-elems_4194304__repeat_77  time=13.710716947s  AI=192.0000 ops/B  bw=0.0073 GB/s  gops=1.4097
+[07:54:04] [0;32mOK[0m      dummy/roofline / ops_8192__n-elems_4194304__repeat_12  time=46.813983438s  AI=2048.0000 ops/B  bw=0.0007 GB/s  gops=1.4679
+[07:54:10] [0;32mOK[0m      dummy/roofline / ops_8__n-elems_4194304__repeat_128  time=2.481104163s  AI=2.0000 ops/B  bw=0.0811 GB/s  gops=0.1623
+[07:54:17] [0;32mOK[0m      dummy/roofline / ops_96__n-elems_4194304__repeat_128  time=4.206274021s  AI=24.0000 ops/B  bw=0.0479 GB/s  gops=1.1487
+
+
+[07:54:17] [0;36m=== Run complete ===[0m
+[07:54:17] Total tests    : 64
+[07:54:17] Results CSV    : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260424_072636.csv
+[07:54:17] Full log       : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260424_072636.log
+[07:54:17] Passed         : 64
+[07:54:17] Failed/Timeout : 0
+
+[2026-04-24 07:54:17] Slow-clock sweep finished (exit=0).
+[2026-04-24 07:54:17] === Done ===
