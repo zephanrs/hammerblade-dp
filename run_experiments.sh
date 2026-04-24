@@ -38,7 +38,7 @@ mkdir -p "$OUT_DIR"
 UNIT_ID="${UNIT_ID:-2}"
 
 # Per-test timeout (seconds). If exceeded, the run is killed and the device reset.
-TIMEOUT="${TIMEOUT:-120}"
+TIMEOUT="${TIMEOUT:-60}"
 
 # Speed label: "fast" for normal clock, "slow" for after cool_down (32x slower).
 # Set SLOW_MODE=1 to label results as slow (you must run cool_down manually first).
@@ -59,11 +59,16 @@ declare -A APP_DIRS=(
   [radix_sort]="radix_sort"
 )
 
-# Which apps to run (default: all).
+# Default run order. nw/efficient is last because it's the most fragile
+# (can still hang in Hirschberg inter-sequence sync); we don't want a hang
+# there to block collection of the other apps' data.
+DEFAULT_APPS=(sw/1d sw/2d nw/naive nw/baseline dummy/roofline radix_sort nw/efficient)
+
+# Which apps to run (default: DEFAULT_APPS in order).
 if [ $# -gt 0 ]; then
   RUN_APPS=("$@")
 else
-  RUN_APPS=("${!APP_DIRS[@]}")
+  RUN_APPS=("${DEFAULT_APPS[@]}")
 fi
 
 # ─── Logging helpers ──────────────────────────────────────────────────────────

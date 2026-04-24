@@ -431,8 +431,8 @@ extern "C" int kernel(uint8_t* qry, uint8_t* ref, int* output, int* path, int po
 
   for (int repeat = 0; repeat < kInputRepeatFactor; repeat++) {
     for (int seq_id = group_id; seq_id < NUM_SEQ; seq_id += bsg_tiles_X) {
-      bsg_barrier_tile_group_sync();
       reset_mailboxes(&mailboxes);
+      bsg_barrier_tile_group_sync();
       const int output_idx = (repeat * NUM_SEQ) + seq_id;
       unrolled_load<uint8_t, REF_CORE>(
         &ref_segment[1],
