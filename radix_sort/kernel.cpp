@@ -3,17 +3,20 @@
 
 enum {
   FLAG_PUSH = 16,
-  FLAG_UP_2 = 17,
-  FLAG_UP_4 = 18,
-  FLAG_UP_8 = 19,
-  FLAG_UP_16 = 20,
-  FLAG_UP_32 = 21,
-  FLAG_UP_64 = 22,
-  FLAG_UP_128 = 23,
-  FLAG_UP_256 = 24,
-  FLAG_PHASE_Y = 25,
-  FLAG_PHASE_X = 26,
-  COUNT_WORDS = 27,
+  FLAG_UP_Y_2 = 17,
+  FLAG_UP_Y_4 = 18,
+  FLAG_UP_Y_8 = 19,
+  FLAG_UP_X_2 = 20,
+  FLAG_UP_X_4 = 21,
+  FLAG_UP_X_8 = 22,
+  FLAG_UP_X_16 = 23,
+  FLAG_UP_X_32 = 24,
+  FLAG_UP_X_64 = 25,
+  FLAG_UP_X_128 = 26,
+  FLAG_UP_X_256 = 27,
+  FLAG_PHASE_Y = 28,
+  FLAG_PHASE_X = 29,
+  COUNT_WORDS = 30,
 };
 
 inline __attribute__((always_inline)) void wait_flag(int *count, int flag) {
@@ -270,7 +273,7 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
   bsg_fence();
   bsg_barrier_tile_group_sync();
   // Y up-sweep.
-  int up_signal_flag = FLAG_UP_2;
+  int up_signal_flag = FLAG_UP_Y_2;
   for (i = 1; i < my; i *= 2, up_signal_flag++) {
     register int k = 2 * i;
     if (!(ry & (k - 1))) {
@@ -296,7 +299,7 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
     rmt = (int*) bsg_remote_ptr(__bsg_x, my - 1, count);
     accumulate(count, rmt);
     // X up-sweep.
-    up_signal_flag = FLAG_UP_2;
+    up_signal_flag = FLAG_UP_X_2;
     for (i = 1; i < mx; i *= 2, up_signal_flag++) {
       register int k = 2 * i;
       if (!(rx & (k - 1))) {
