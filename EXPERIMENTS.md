@@ -71,17 +71,18 @@ ops=1.  All at N_ELEMS=4 M ints.  Target 20 s each.
 
 ### 6. dummy/barrier_bench — barrier comparison
 
-Two barrier implementations × four iteration counts.
+One run per barrier; tune N so each lands at ~20 s, then compute
+time-per-barrier = wall_time / N.
 
-- barrier ∈ {default, linear} × N ∈ {1 K, 10 K, 100 K, 1 M} — **8 runs**
+- barrier ∈ {default, linear} — **2 runs**
 
-**Subtotal: 8 runs**
+**Subtotal: 2 runs**
 
 ---
 
-## Fast-clock total: **126 runs**
+## Fast-clock total: **120 runs**
 
-(50 sw/1d CPG + 6 sw/2d + 12 nw/ + 18 radix_sort + 32 roofline + 8 barrier_bench)
+(50 sw/1d CPG + 6 sw/2d + 12 nw/ + 18 radix_sort + 32 roofline + 2 barrier_bench)
 
 ## Slow clock (subset)
 
