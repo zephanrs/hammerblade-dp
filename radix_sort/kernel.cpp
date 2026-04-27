@@ -1,6 +1,33 @@
 #include <bsg_cuda_lite_barrier.h>
 #include <bsg_manycore.h>
 
+// Debug instrumentation: tile (0,0) prints kernel-level boundaries; tile
+// (mx, my) = (8, 4) prints prefix_sum phase boundaries. After a hang, the
+// last printed value tells us which phase deadlocked.
+//
+// Marker scheme (decimal):
+//   1     kernel start (after init barrier)
+//   100+j outer-loop iter start (j = 0,4,...,28)
+//   200+j after scan, before prefix_sum
+//   300+j after prefix_sum return
+//   400+j after scatter
+//   999   kernel end
+//   10    prefix_sum: entered (post initial barrier)
+//   20    prefix_sum: after Y up-sweep loop
+//   30    prefix_sum: after half-combine
+//   40    prefix_sum: after X up-sweep loop
+//   50    prefix_sum: after prefix() + pull() at seam
+//   60    prefix_sum: after X down-sweep loop
+//   70    prefix_sum: after half-redistribute
+//   80    prefix_sum: after Y down-sweep loop
+//   90    prefix_sum: end (before final barrier)
+static inline void dbg(int v) {
+  if (__bsg_x == 0 && __bsg_y == 0) bsg_print_int(v);
+}
+static inline void dbg_seam(int v) {
+  if (__bsg_x == (bsg_tiles_X/2) && __bsg_y == (bsg_tiles_Y/2)) bsg_print_int(v);
+}
+
 /*inline __attribute__((always_inline))*/ void accumulate(int *count,
                                                           int *rmt) {
   register int r0 = rmt[0];
@@ -250,6 +277,7 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
   int i, k;
   bsg_fence();
   bsg_barrier_hw_tile_group_sync();
+  dbg_seam(10);
   for (i = 1; i < my; i *= 2) {
     register int k = 2 * i;
     if (!(ry & (k - 1))) {
@@ -257,9 +285,11 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
       accumulate(count, rmt);
     }
   }
+  dbg_seam(20);
   if (__bsg_y == my) {
     rmt = (int*) bsg_remote_ptr(__bsg_x, my - 1, count);
     accumulate(count, rmt);
+    dbg_seam(30);
     for (i = 1; i < mx; i *= 2) {
       register int k = 2 * i;
       if (!(rx & (k - 1))) {
@@ -267,11 +297,13 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
         accumulate(count, rmt);
       }
     }
+    dbg_seam(40);
     if (__bsg_x == mx) {
       rmt = (int*) bsg_remote_ptr(mx - 1, my, count);
       prefix(count, rmt);
       pull(count, rmt);
     }
+    dbg_seam(50);
   }
   if (__bsg_x == mx - 1 && __bsg_y == my) {
     rmt = (int*) bsg_remote_ptr(mx, my, count);
@@ -289,6 +321,7 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
       }
     }
   }
+  dbg_seam(60);
   if (__bsg_y == my) {
     rmt = (int*) bsg_remote_ptr(__bsg_x, my - 1, count);
     pull(count, rmt);
@@ -296,6 +329,7 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
     rmt = (int*) bsg_remote_ptr(__bsg_x, my, count);
     push(count, rmt);
   }
+  dbg_seam(70);
   for (k = my; k > 1; k /= 2) {
     register int i = k / 2;
     if (!(ry & (k - 1))) {
@@ -306,8 +340,10 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
       push(count, rmt);
     }
   }
+  dbg_seam(80);
   bsg_fence();
   bsg_barrier_hw_tile_group_sync();
+  dbg_seam(90);
 }
 
 extern "C" __attribute__((noinline)) int kernel_radix_sort(int *A, int *B,
@@ -316,6 +352,7 @@ extern "C" __attribute__((noinline)) int kernel_radix_sort(int *A, int *B,
   bsg_cuda_print_stat_kernel_start();
   bsg_fence();
   bsg_barrier_hw_tile_group_sync();
+  dbg(1);
   int id, my, mx, cy, cx, py, px, ry, rx;
   int *rmt;
   my = (bsg_tiles_Y / 2);
@@ -348,13 +385,17 @@ extern "C" __attribute__((noinline)) int kernel_radix_sort(int *A, int *B,
   send = A;
   recv = B;
   for (int j = 0; j < 32; j += 4) {
+    dbg(100 + j);
     dram = send + off;
     for (int k = 0; k < 16; k++) {
       count[k] = 0;
     }
     scan(count, dram, len, j);
+    dbg(200 + j);
     prefix_sum(count, rx, ry, cx, cy, px, py, mx, my);
+    dbg(300 + j);
     scatter(recv, count, dram, len, j);
+    dbg(400 + j);
     tmptr = send;
     send = recv;
     recv = tmptr;
@@ -364,5 +405,6 @@ extern "C" __attribute__((noinline)) int kernel_radix_sort(int *A, int *B,
   bsg_cuda_print_stat_kernel_end();
   bsg_fence();
   bsg_barrier_hw_tile_group_sync();
+  dbg(999);
   return 0;
 }
