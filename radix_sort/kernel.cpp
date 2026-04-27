@@ -310,14 +310,179 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
   bsg_barrier_tile_group_sync();
 }
 
+// Compile-time STAGE bisect. Build with `STAGE=N make exec.log ...`.
+// Each stage adds one phase of work then EVERY core hits a tile-group
+// barrier before either continuing to the next stage or falling through
+// to the final epilogue. If a stage hangs, the bug is in that phase's
+// inter-tile communication.
+//
+// 1  init + epilogue only (no work)
+// 2  + ID setup + scan (j=0)
+// 3  + Y up-sweep
+// 4  + half-combine + X up-sweep
+// 5  + seam prefix() + pull() + push()
+// 6  + X down-sweep
+// 7  + half-redistribute (y=my-1 ↔ y=my)
+// 8  + Y down-sweep
+// 9  + scatter (j=0)
+// 10 + remaining 7 outer-loop iters using full prefix_sum() (default)
+
+#ifndef STAGE
+#define STAGE 10
+#endif
+
 extern "C" int kernel(int *A, int *B, int N) {
-  // STRIPPED: same exact prologue/epilogue as sw/1d, with NO computation in
-  // between. If this hangs, the issue is in radix_sort's launch path
-  // (host main.cpp, template.mk, Makefile, runtime resolution of "kernel"
-  // symbol), not in the kernel's prefix_sum / scatter logic.
   bsg_barrier_tile_group_init();
   bsg_barrier_tile_group_sync();
   bsg_cuda_print_stat_kernel_start();
+
+  int my = bsg_tiles_Y / 2;
+  int mx = bsg_tiles_X / 2;
+  int rx = 0, ry = 0, cx = 0, cy = 0, px = 0, py = 0, id = 0;
+  if (__bsg_x < mx) {
+    rx = mx - 1 - __bsg_x;
+    id = __bsg_x * bsg_tiles_Y;
+    cx = -1; px = 1;
+  } else {
+    rx = __bsg_x - mx;
+    id = (bsg_tiles_X - rx - 1) * bsg_tiles_Y;
+    cx = 1; px = -1;
+  }
+  if (__bsg_y < my) {
+    ry = my - 1 - __bsg_y;
+    id += __bsg_y;
+    cy = -1; py = 1;
+  } else {
+    ry = __bsg_y - my;
+    id += bsg_tiles_Y - 1 - ry;
+    cy = 1; py = -1;
+  }
+  int len = N / (bsg_tiles_X * bsg_tiles_Y);
+  int off = id * len;
+  int *send = A;
+  int *recv = B;
+  int *dram = send + off;
+  int *rmt = nullptr;
+  (void)rmt; (void)px; (void)py;  // silence unused warnings at low STAGE
+
+#if STAGE >= 2
+  for (int k = 0; k < 16; k++) count[k] = 0;
+  scan(count, dram, len, 0);
+  bsg_fence();
+  bsg_barrier_tile_group_sync();
+#endif
+
+#if STAGE >= 3
+  // Y up-sweep — every core executes the loop, only some do the accumulate.
+  for (int i = 1; i < my; i *= 2) {
+    int k2 = 2 * i;
+    if (!(ry & (k2 - 1))) {
+      rmt = (int*) bsg_remote_ptr(__bsg_x, __bsg_y + cy * i, count);
+      accumulate(count, rmt);
+    }
+  }
+  bsg_fence();
+  bsg_barrier_tile_group_sync();
+#endif
+
+#if STAGE >= 4
+  // half-combine + X up-sweep — only y=my row does work; everyone barriers.
+  if (__bsg_y == my) {
+    rmt = (int*) bsg_remote_ptr(__bsg_x, my - 1, count);
+    accumulate(count, rmt);
+    for (int i = 1; i < mx; i *= 2) {
+      int k2 = 2 * i;
+      if (!(rx & (k2 - 1))) {
+        rmt = (int*) bsg_remote_ptr(__bsg_x + cx * i, __bsg_y, count);
+        accumulate(count, rmt);
+      }
+    }
+  }
+  bsg_fence();
+  bsg_barrier_tile_group_sync();
+#endif
+
+#if STAGE >= 5
+  // Seam: prefix() + pull() at (mx, my); push() at (mx-1, my).
+  if (__bsg_y == my && __bsg_x == mx) {
+    rmt = (int*) bsg_remote_ptr(mx - 1, my, count);
+    prefix(count, rmt);
+    pull(count, rmt);
+  }
+  if (__bsg_x == mx - 1 && __bsg_y == my) {
+    rmt = (int*) bsg_remote_ptr(mx, my, count);
+    push(count, rmt);
+  }
+  bsg_fence();
+  bsg_barrier_tile_group_sync();
+#endif
+
+#if STAGE >= 6
+  // X down-sweep — only y=my row participates.
+  for (int kk = mx; kk > 1; kk /= 2) {
+    int i = kk / 2;
+    if (__bsg_y == my) {
+      if (!(rx & (kk - 1))) {
+        rmt = (int*) bsg_remote_ptr(__bsg_x + cx * i, my, count);
+        pull(count, rmt);
+      } else if (!(rx & (i - 1))) {
+        rmt = (int*) bsg_remote_ptr(__bsg_x + px * i, my, count);
+        push(count, rmt);
+      }
+    }
+  }
+  bsg_fence();
+  bsg_barrier_tile_group_sync();
+#endif
+
+#if STAGE >= 7
+  // Half-redistribute (y=my pulls from y=my-1; y=my-1 pushes to y=my).
+  if (__bsg_y == my) {
+    rmt = (int*) bsg_remote_ptr(__bsg_x, my - 1, count);
+    pull(count, rmt);
+  } else if (__bsg_y == my - 1) {
+    rmt = (int*) bsg_remote_ptr(__bsg_x, my, count);
+    push(count, rmt);
+  }
+  bsg_fence();
+  bsg_barrier_tile_group_sync();
+#endif
+
+#if STAGE >= 8
+  // Y down-sweep — every core executes the loop, only some do work.
+  for (int kk = my; kk > 1; kk /= 2) {
+    int i = kk / 2;
+    if (!(ry & (kk - 1))) {
+      rmt = (int*) bsg_remote_ptr(__bsg_x, __bsg_y + cy * i, count);
+      pull(count, rmt);
+    } else if (!(ry & (i - 1))) {
+      rmt = (int*) bsg_remote_ptr(__bsg_x, __bsg_y + py * i, count);
+      push(count, rmt);
+    }
+  }
+  bsg_fence();
+  bsg_barrier_tile_group_sync();
+#endif
+
+#if STAGE >= 9
+  // Scatter for j=0.
+  scatter(recv, count, dram, len, 0);
+  bsg_fence();
+  bsg_barrier_tile_group_sync();
+#endif
+
+#if STAGE >= 10
+  // Remaining 7 outer-loop iters using the full prefix_sum() function.
+  int *tmptr = send; send = recv; recv = tmptr;
+  for (int j = 4; j < 32; j += 4) {
+    dram = send + off;
+    for (int k = 0; k < 16; k++) count[k] = 0;
+    scan(count, dram, len, j);
+    prefix_sum(count, rx, ry, cx, cy, px, py, mx, my);
+    scatter(recv, count, dram, len, j);
+    tmptr = send; send = recv; recv = tmptr;
+  }
+#endif
 
   bsg_fence();
   bsg_barrier_tile_group_sync();
