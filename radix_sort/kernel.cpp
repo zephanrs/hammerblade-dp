@@ -311,24 +311,24 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
 }
 
 // Compile-time STAGE bisect. Build with `STAGE=N make exec.log ...`.
-// Each stage adds one phase of work then EVERY core hits a tile-group
-// barrier before either continuing to the next stage or falling through
-// to the final epilogue. If a stage hangs, the bug is in that phase's
-// inter-tile communication.
+// Stage 6 is split into three sub-stages so we can localize *which* iter
+// of the X down-sweep loop hangs.
 //
-// 1  init + epilogue only (no work)
-// 2  + ID setup + scan (j=0)
-// 3  + Y up-sweep
-// 4  + half-combine + X up-sweep
-// 5  + seam prefix() + pull() + push()
-// 6  + X down-sweep
-// 7  + half-redistribute (y=my-1 ↔ y=my)
-// 8  + Y down-sweep
-// 9  + scatter (j=0)
-// 10 + remaining 7 outer-loop iters using full prefix_sum() (default)
+// 1   init + epilogue only (no work)
+// 2   + ID setup + scan (j=0)
+// 3   + Y up-sweep
+// 4   + half-combine + X up-sweep
+// 5   + seam prefix() + pull() + push()
+// 6   + X down-sweep iter 1 (kk=mx, i=mx/2)
+// 7   + X down-sweep iter 2 (kk=mx/2, i=mx/4)
+// 8   + X down-sweep iter 3 (kk=2, i=1)  [full X down-sweep done]
+// 9   + half-redistribute (y=my-1 ↔ y=my)
+// 10  + Y down-sweep
+// 11  + scatter (j=0)
+// 12  + remaining 7 outer-loop iters using full prefix_sum() (default)
 
 #ifndef STAGE
-#define STAGE 10
+#define STAGE 12
 #endif
 
 extern "C" int kernel(int *A, int *B, int N) {
@@ -418,8 +418,9 @@ extern "C" int kernel(int *A, int *B, int N) {
 #endif
 
 #if STAGE >= 6
-  // X down-sweep — only y=my row participates.
-  for (int kk = mx; kk > 1; kk /= 2) {
+  // X down-sweep iter 1 (kk=mx, i=mx/2).
+  {
+    int kk = mx;
     int i = kk / 2;
     if (__bsg_y == my) {
       if (!(rx & (kk - 1))) {
@@ -436,6 +437,44 @@ extern "C" int kernel(int *A, int *B, int N) {
 #endif
 
 #if STAGE >= 7
+  // X down-sweep iter 2 (kk=mx/2, i=mx/4).
+  {
+    int kk = mx / 2;
+    int i = kk / 2;
+    if (__bsg_y == my) {
+      if (!(rx & (kk - 1))) {
+        rmt = (int*) bsg_remote_ptr(__bsg_x + cx * i, my, count);
+        pull(count, rmt);
+      } else if (!(rx & (i - 1))) {
+        rmt = (int*) bsg_remote_ptr(__bsg_x + px * i, my, count);
+        push(count, rmt);
+      }
+    }
+  }
+  bsg_fence();
+  bsg_barrier_tile_group_sync();
+#endif
+
+#if STAGE >= 8
+  // X down-sweep iter 3 (kk=2, i=1) — final iter.
+  {
+    int kk = 2;
+    int i = 1;
+    if (__bsg_y == my) {
+      if (!(rx & (kk - 1))) {
+        rmt = (int*) bsg_remote_ptr(__bsg_x + cx * i, my, count);
+        pull(count, rmt);
+      } else if (!(rx & (i - 1))) {
+        rmt = (int*) bsg_remote_ptr(__bsg_x + px * i, my, count);
+        push(count, rmt);
+      }
+    }
+  }
+  bsg_fence();
+  bsg_barrier_tile_group_sync();
+#endif
+
+#if STAGE >= 9
   // Half-redistribute (y=my pulls from y=my-1; y=my-1 pushes to y=my).
   if (__bsg_y == my) {
     rmt = (int*) bsg_remote_ptr(__bsg_x, my - 1, count);
@@ -448,7 +487,7 @@ extern "C" int kernel(int *A, int *B, int N) {
   bsg_barrier_tile_group_sync();
 #endif
 
-#if STAGE >= 8
+#if STAGE >= 10
   // Y down-sweep — every core executes the loop, only some do work.
   for (int kk = my; kk > 1; kk /= 2) {
     int i = kk / 2;
@@ -464,14 +503,14 @@ extern "C" int kernel(int *A, int *B, int N) {
   bsg_barrier_tile_group_sync();
 #endif
 
-#if STAGE >= 9
+#if STAGE >= 11
   // Scatter for j=0.
   scatter(recv, count, dram, len, 0);
   bsg_fence();
   bsg_barrier_tile_group_sync();
 #endif
 
-#if STAGE >= 10
+#if STAGE >= 12
   // Remaining 7 outer-loop iters using the full prefix_sum() function.
   int *tmptr = send; send = recv; recv = tmptr;
   for (int j = 4; j < 32; j += 4) {
