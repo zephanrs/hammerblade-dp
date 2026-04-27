@@ -28,7 +28,10 @@ inline __attribute__((always_inline)) void wait_flag(int *count, int flag) {
 
 inline __attribute__((always_inline)) void signal_flag(int *rmt, int flag) {
   asm volatile("" ::: "memory");
+  bsg_fence();
+  asm volatile("" ::: "memory");
   ((volatile int*)rmt)[flag] = 1;
+  asm volatile("" ::: "memory");
 }
 
 /*inline __attribute__((always_inline))*/ void accumulate(int *count,
@@ -128,7 +131,6 @@ inline __attribute__((always_inline)) void signal_flag(int *rmt, int flag) {
   count[13] += r13;
   count[14] += r14;
   count[15] += r15;
-  bsg_fence();
   signal_flag(rmt, FLAG_PUSH);
 }
 
