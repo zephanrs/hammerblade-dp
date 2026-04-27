@@ -311,45 +311,13 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
 }
 
 extern "C" int kernel(int *A, int *B, int N) {
-  // Same prologue/epilogue order as sw/1d.
+  // STRIPPED: same exact prologue/epilogue as sw/1d, with NO computation in
+  // between. If this hangs, the issue is in radix_sort's launch path
+  // (host main.cpp, template.mk, Makefile, runtime resolution of "kernel"
+  // symbol), not in the kernel's prefix_sum / scatter logic.
   bsg_barrier_tile_group_init();
   bsg_barrier_tile_group_sync();
   bsg_cuda_print_stat_kernel_start();
-
-  int my = bsg_tiles_Y / 2;
-  int mx = bsg_tiles_X / 2;
-  int rx, ry, cx, cy, px, py, id;
-  if (__bsg_x < mx) {
-    rx = mx - 1 - __bsg_x;
-    id = __bsg_x * bsg_tiles_Y;
-    cx = -1; px = 1;
-  } else {
-    rx = __bsg_x - mx;
-    id = (bsg_tiles_X - rx - 1) * bsg_tiles_Y;
-    cx = 1; px = -1;
-  }
-  if (__bsg_y < my) {
-    ry = my - 1 - __bsg_y;
-    id += __bsg_y;
-    cy = -1; py = 1;
-  } else {
-    ry = __bsg_y - my;
-    id += bsg_tiles_Y - 1 - ry;
-    cy = 1; py = -1;
-  }
-  int len = N / (bsg_tiles_X * bsg_tiles_Y);
-  int off = id * len;
-  int *send = A;
-  int *recv = B;
-  int *dram, *tmptr;
-  for (int j = 0; j < 32; j += 4) {
-    dram = send + off;
-    for (int k = 0; k < 16; k++) count[k] = 0;
-    scan(count, dram, len, j);
-    prefix_sum(count, rx, ry, cx, cy, px, py, mx, my);
-    scatter(recv, count, dram, len, j);
-    tmptr = send; send = recv; recv = tmptr;
-  }
 
   bsg_fence();
   bsg_barrier_tile_group_sync();
