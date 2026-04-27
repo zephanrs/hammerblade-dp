@@ -10,7 +10,9 @@
 //
 // Memory cost shrinks from O(QRY × REF) to O(QRY + REF).  Pre-rewrite
 // max seq_len = 192 (full submatrix double-buffered hit the 4 KB DMEM
-// budget); this file pushes the cap to ~2048 with single buffer.
+// budget); this file pushes the verified cap to 1024 with single
+// buffer.  1536 and 2048 fit the static DMEM math but failed on
+// hardware — likely stack overhead pushed past the 4 KB ceiling.
 //
 // We drop the double buffer because explicit handshake on
 // right_done / bottom_done is enough to gate concurrent overwrites,

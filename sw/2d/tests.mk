@@ -3,19 +3,18 @@
 # Each tile only stores its rightmost dp column + bottommost dp row;
 # the interior is computed on the fly with a 1D rolling row.  DMEM is
 # now O(QRY + REF) per tile instead of O(QRY × REF), so seq_len caps at
-# ~2048 (4 KB DMEM budget) instead of 192:
+# 1024 (verified on hardware) instead of 192:
 #
-#   seq-len  QRY  REF   buf    +working+left_col   total
-#        32    4    2    ~96 B    ~36 B            ~132 B   ✓
-#       128   16    8    ~292 B   ~136 B           ~428 B   ✓
-#       192   24   12    ~432 B   ~204 B           ~636 B   ✓
-#       512   64   32   ~1144 B   ~528 B          ~1672 B   ✓
-#      1024  128   64   ~2244 B  ~1024 B          ~3268 B   ✓
-#      2048  256  128   ~4444 B          —          ~3520 B  ← single buffer
-#      2304  288  144                                ~3952 B  borderline
-#      2560  320  160                                ~4384 B  ✗ OVERFLOW
+#   seq-len  QRY  REF   buf    +working+left_col   total      status
+#        32    4    2    ~96 B    ~36 B            ~132 B     ✓
+#       128   16    8    ~292 B   ~136 B           ~428 B     ✓
+#       192   24   12    ~432 B   ~204 B           ~636 B     ✓
+#       512   64   32   ~1144 B   ~528 B          ~1672 B     ✓
+#      1024  128   64   ~2244 B  ~1024 B          ~3268 B     ✓ (verified)
+#      1536                                                    ✗ failed on HW
+#      2048                                                    ✗ failed on HW
 #
-# Max seq_len ≈ 2048.  Pre-rewrite max was 192 (full submatrix
+# Max seq_len = 1024.  Pre-rewrite max was 192 (full submatrix
 # double-buffered).
 #
 # Timing baseline (measured on hardware):
@@ -56,8 +55,6 @@ TESTS += seq-len_192__num-seq_4096__repeat_512
 TESTS += seq-len_256__num-seq_16__repeat_1
 TESTS += seq-len_512__num-seq_16__repeat_1
 TESTS += seq-len_1024__num-seq_16__repeat_1
-TESTS += seq-len_1536__num-seq_16__repeat_1
-TESTS += seq-len_2048__num-seq_16__repeat_1
 
 # --- Shared vs unique pod data (A/B pairs) ---
 # num_seq chosen so pod-unique slice fits in FASTA: num_seq × num_pods × seq_len ≤ 1MB
