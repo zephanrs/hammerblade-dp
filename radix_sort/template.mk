@@ -55,7 +55,12 @@ RISCV_CCPPFLAGS += -DCACHE_LINE_WORDS=$(BSG_MACHINE_VCACHE_LINE_WORDS)
 ifeq ($(warm-cache),yes)
 RISCV_CCPPFLAGS += -DWARM_CACHE
 endif
-RISCV_LDFLAGS += -flto
+# NOTE: -flto removed. With LTO the linker may strip the `kernel` symbol
+# from the binary because no in-binary call site references it (the host
+# runtime calls it by name string). That causes the cores to never enter
+# user code, the first barrier_sync hangs, and the host hangs waiting
+# for kernel completion. sw/1d doesn't use -flto either.
+# RISCV_LDFLAGS += -flto
 RISCV_TARGET_OBJECTS = kernel.rvo
 # Set USE_LINEAR_BARRIER=1 to override bsg_barrier_amoadd with the AMOADD
 # linear barrier from barriers/linear_barrier.S. Linking it replaces the
