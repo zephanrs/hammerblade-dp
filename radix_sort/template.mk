@@ -23,8 +23,8 @@ DEFINES += -D_XOPEN_SOURCE=500 -D_BSD_SOURCE -D_DEFAULT_SOURCE
 DEFINES += -Dbsg_tiles_X=$(TILE_GROUP_DIM_X) -Dbsg_tiles_Y=$(TILE_GROUP_DIM_Y)
 DEFINES += -DNUM_POD_X=$(NUM_POD_X) -DNUM_POD_Y=$(NUM_POD_Y)
 DEFINES += -DSIZE=$(vector-size)
-ifdef repeat
-DEFINES += -DREPEAT=$(repeat)
+ifdef num-arr
+DEFINES += -DNUM_ARR=$(num-arr)
 endif
 
 FLAGS     = -g -Wall -Wno-unused-function -Wno-unused-variable
@@ -45,8 +45,8 @@ RISCV_CCPPFLAGS += -DBSG_MACHINE_GLOBAL_Y=$(BSG_MACHINE_GLOBAL_Y)
 RISCV_CCPPFLAGS += -Dbsg_tiles_X=$(TILE_GROUP_DIM_X)
 RISCV_CCPPFLAGS += -Dbsg_tiles_Y=$(TILE_GROUP_DIM_Y)
 RISCV_CCPPFLAGS += -DSIZE=$(vector-size)
-ifdef repeat
-RISCV_CCPPFLAGS += -DREPEAT=$(repeat)
+ifdef num-arr
+RISCV_CCPPFLAGS += -DNUM_ARR=$(num-arr)
 endif
 
 RISCV_TARGET_OBJECTS = kernel.rvo

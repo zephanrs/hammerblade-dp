@@ -20,8 +20,8 @@ $(addsuffix /parameters.mk,$(TESTS_DIRS)): %/parameters.mk:
 	@touch $@
 	@echo test-name  = $* >> $@
 	@echo vector-size = $(call get-vector-size,$*) >> $@
-	@repeat="$(call get-repeat,$*)"; \
-	if [ -n "$$repeat" ]; then echo repeat = "$$repeat" >> $@; fi
+	@num_arr="$(call get-num-arr,$*)"; \
+	if [ -n "$$num_arr" ]; then echo num-arr = "$$num_arr" >> $@; fi
 
 
 include $(HB_HAMMERBENCH_PATH)/mk/testbench_common.mk

@@ -362,7 +362,7 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
   bsg_barrier_tile_group_sync();
 }
 
-extern "C" int kernel(int *A, int *B, int N) {
+extern "C" int kernel(int *A, int *B, int N, int num_arr) {
   bsg_barrier_tile_group_init();
   bsg_barrier_tile_group_sync();
   bsg_cuda_print_stat_kernel_start();
@@ -390,24 +390,33 @@ extern "C" int kernel(int *A, int *B, int N) {
   }
   int len = N / (bsg_tiles_X * bsg_tiles_Y);
   int off = id * len;
-  int *send = A;
-  int *recv = B;
   int *dram, *tmptr;
 
-  for (int j = 0; j < 32; j += 4) {
-    // Barrier 1: before scan. Ensures the previous iter's scatter writes
-    // are globally visible before this iter reads from send (= old recv).
-    bsg_fence();
-    bsg_barrier_tile_group_sync();
+  // A holds num_arr packed input arrays, each N ints. Sort each in turn,
+  // using B as a single SIZE-int scratch buffer for the ping-pong. Eight
+  // 4-bit passes = 8 swaps (even), so the sorted result lands back in the
+  // original A slot for that array.
+  for (int iter = 0; iter < num_arr; iter++) {
+    int *base = A + iter * N;
+    int *send = base;
+    int *recv = B;
 
-    dram = send + off;
-    for (int k = 0; k < 16; k++) count[k] = 0;
-    scan(count, dram, len, j);
-    // Barrier 2 (inside prefix_sum): before reduction. Ensures all tiles'
-    // scan results are visible before any tile starts the up-sweep.
-    prefix_sum(count, rx, ry, cx, cy, px, py, mx, my);
-    scatter(recv, count, dram, len, j);
-    tmptr = send; send = recv; recv = tmptr;
+    for (int j = 0; j < 32; j += 4) {
+      // Barrier 1: before scan. Ensures the previous pass's scatter (or
+      // the previous iter's last scatter, or the host DMA) is globally
+      // visible before this pass reads send.
+      bsg_fence();
+      bsg_barrier_tile_group_sync();
+
+      dram = send + off;
+      for (int k = 0; k < 16; k++) count[k] = 0;
+      scan(count, dram, len, j);
+      // Barrier 2 (inside prefix_sum): before reduction. Ensures all
+      // tiles' scan results are visible before any tile starts up-sweep.
+      prefix_sum(count, rx, ry, cx, cy, px, py, mx, my);
+      scatter(recv, count, dram, len, j);
+      tmptr = send; send = recv; recv = tmptr;
+    }
   }
 
   bsg_fence();
