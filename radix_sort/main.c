@@ -93,11 +93,13 @@ int kernel_radix_sort(int argc, char **argv) {
       (uint32_t)stop_at
     };
     BSG_CUDA_CALL(hb_mc_kernel_enqueue(&device, grid_dim, tg_dim,
-                                        "kernel_radix_sort", 4, cuda_argv));
+                                        "kernel", 4, cuda_argv));
   }
 
   /* Launch all pods simultaneously. */
-  bsg_pr_info("Launching all pods\n");
+  bsg_pr_test_info("Launching all pods (cluster guide says use bsg_pr_test_info to actually flush before hangs)\n");
+  fflush(stdout);
+  fflush(stderr);
   struct timespec t_start = {0, 0}, t_end = {0, 0};
   hb_mc_manycore_trace_enable((&device)->mc);
   clock_gettime(CLOCK_MONOTONIC, &t_start);

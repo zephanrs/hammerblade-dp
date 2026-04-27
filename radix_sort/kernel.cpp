@@ -270,7 +270,7 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
   int *rmt;
   int i, k;
   bsg_fence();
-  bsg_barrier_hw_tile_group_sync();
+  bsg_barrier_tile_group_sync();
   if (stop_at < 5) return;
   for (i = 1; i < my; i *= 2) {
     register int k = 2 * i;
@@ -335,16 +335,21 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
   }
   if (stop_at < 12) return;
   bsg_fence();
-  bsg_barrier_hw_tile_group_sync();
+  bsg_barrier_tile_group_sync();
 }
 
-extern "C" __attribute__((noinline)) int kernel_radix_sort(int *A, int *B,
-                                                           int N,
-                                                           int stop_at) {
-  bsg_barrier_hw_tile_group_init();
+// Renamed from kernel_radix_sort → kernel to match the convention every other
+// app in this repo uses. The host's hb_mc_kernel_enqueue passes the function
+// name as a string; the runtime resolves it from the binary's symbol table.
+// Whether or not "kernel" is hard-required, matching the working apps removes
+// one variable while debugging the launch hang.
+extern "C" __attribute__((noinline)) int kernel(int *A, int *B,
+                                                int N,
+                                                int stop_at) {
+  // Match sw/1d's order exactly: init, sync, print_stat_start.
+  bsg_barrier_tile_group_init();
+  bsg_barrier_tile_group_sync();
   bsg_cuda_print_stat_kernel_start();
-  bsg_fence();
-  bsg_barrier_hw_tile_group_sync();
 
   // Declare all locals up front so early-return goto's don't cross
   // initializations (C++ rule).
@@ -400,9 +405,10 @@ extern "C" __attribute__((noinline)) int kernel_radix_sort(int *A, int *B,
   }
 
 kernel_end:
+  // Match sw/1d's order exactly: fence, sync, fence, print_stat_end.
+  bsg_fence();
+  bsg_barrier_tile_group_sync();
   bsg_fence();
   bsg_cuda_print_stat_kernel_end();
-  bsg_fence();
-  bsg_barrier_hw_tile_group_sync();
   return 0;
 }
