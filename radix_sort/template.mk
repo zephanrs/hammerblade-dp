@@ -48,10 +48,6 @@ RISCV_CCPPFLAGS += -DSIZE=$(vector-size)
 ifdef repeat
 RISCV_CCPPFLAGS += -DREPEAT=$(repeat)
 endif
-# Compile-time stage bisect — see kernel.cpp.  Default 10 = full kernel.
-ifdef STAGE
-RISCV_CCPPFLAGS += -DSTAGE=$(STAGE)
-endif
 
 RISCV_TARGET_OBJECTS = kernel.rvo
 BSG_MANYCORE_KERNELS = main.riscv

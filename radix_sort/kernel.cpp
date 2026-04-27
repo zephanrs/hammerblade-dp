@@ -325,27 +325,6 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
   bsg_barrier_tile_group_sync();
 }
 
-// Compile-time STAGE bisect. Build with `STAGE=N make exec.log ...`.
-// Stage 6 is split into three sub-stages so we can localize *which* iter
-// of the X down-sweep loop hangs.
-//
-// 1   init + epilogue only (no work)
-// 2   + ID setup + scan (j=0)
-// 3   + Y up-sweep
-// 4   + half-combine + X up-sweep
-// 5   + seam prefix() + pull() + push()
-// 6   + X down-sweep iter 1 (kk=mx, i=mx/2)
-// 7   + X down-sweep iter 2 (kk=mx/2, i=mx/4)
-// 8   + X down-sweep iter 3 (kk=2, i=1)  [full X down-sweep done]
-// 9   + half-redistribute (y=my-1 ↔ y=my)
-// 10  + Y down-sweep
-// 11  + scatter (j=0)
-// 12  + remaining 7 outer-loop iters using full prefix_sum() (default)
-
-#ifndef STAGE
-#define STAGE 12
-#endif
-
 extern "C" int kernel(int *A, int *B, int N) {
   bsg_barrier_tile_group_init();
   bsg_barrier_tile_group_sync();
@@ -353,7 +332,7 @@ extern "C" int kernel(int *A, int *B, int N) {
 
   int my = bsg_tiles_Y / 2;
   int mx = bsg_tiles_X / 2;
-  int rx = 0, ry = 0, cx = 0, cy = 0, px = 0, py = 0, id = 0;
+  int rx, ry, cx, cy, px, py, id;
   if (__bsg_x < mx) {
     rx = mx - 1 - __bsg_x;
     id = __bsg_x * bsg_tiles_Y;
@@ -376,172 +355,23 @@ extern "C" int kernel(int *A, int *B, int N) {
   int off = id * len;
   int *send = A;
   int *recv = B;
-  int *dram = send + off;
-  int *rmt = nullptr;
-  (void)rmt; (void)px; (void)py;  // silence unused warnings at low STAGE
+  int *dram, *tmptr;
 
-#if STAGE >= 2
-  for (int k = 0; k < 16; k++) count[k] = 0;
-  scan(count, dram, len, 0);
-  bsg_fence();
-  bsg_barrier_tile_group_sync();
-#endif
-
-#if STAGE >= 3
-  // Y up-sweep — every core executes the loop, only some do the accumulate.
-  for (int i = 1; i < my; i *= 2) {
-    int k2 = 2 * i;
-    if (!(ry & (k2 - 1))) {
-      rmt = (int*) bsg_remote_ptr(__bsg_x, __bsg_y + cy * i, count);
-      accumulate(count, rmt);
-    }
-  }
-  bsg_fence();
-  bsg_barrier_tile_group_sync();
-#endif
-
-#if STAGE >= 4
-  // half-combine + X up-sweep — only y=my row does work; everyone barriers.
-  if (__bsg_y == my) {
-    rmt = (int*) bsg_remote_ptr(__bsg_x, my - 1, count);
-    accumulate(count, rmt);
-    for (int i = 1; i < mx; i *= 2) {
-      int k2 = 2 * i;
-      if (!(rx & (k2 - 1))) {
-        rmt = (int*) bsg_remote_ptr(__bsg_x + cx * i, __bsg_y, count);
-        accumulate(count, rmt);
-      }
-    }
-  }
-  bsg_fence();
-  bsg_barrier_tile_group_sync();
-#endif
-
-#if STAGE >= 5
-  // Seam: prefix() + pull() at (mx, my); push() at (mx-1, my).
-  if (__bsg_y == my && __bsg_x == mx) {
-    rmt = (int*) bsg_remote_ptr(mx - 1, my, count);
-    prefix(count, rmt);
-    pull(count, rmt);
-  }
-  if (__bsg_x == mx - 1 && __bsg_y == my) {
-    rmt = (int*) bsg_remote_ptr(mx, my, count);
-    push(count, rmt);
-  }
-  bsg_fence();
-  bsg_barrier_tile_group_sync();
-#endif
-
-#if STAGE >= 6
-  // X down-sweep iter 1 (kk=mx, i=mx/2).
-  {
-    int kk = mx;
-    int i = kk / 2;
-    if (__bsg_y == my) {
-      if (!(rx & (kk - 1))) {
-        rmt = (int*) bsg_remote_ptr(__bsg_x + cx * i, my, count);
-        pull(count, rmt);
-      } else if (!(rx & (i - 1))) {
-        rmt = (int*) bsg_remote_ptr(__bsg_x + px * i, my, count);
-        push(count, rmt);
-      }
-    }
-  }
-  bsg_fence();
-  bsg_barrier_tile_group_sync();
-#endif
-
-#if STAGE >= 7
-  // X down-sweep iter 2 (kk=mx/2, i=mx/4).
-  {
-    int kk = mx / 2;
-    int i = kk / 2;
-    if (__bsg_y == my) {
-      if (!(rx & (kk - 1))) {
-        rmt = (int*) bsg_remote_ptr(__bsg_x + cx * i, my, count);
-        pull(count, rmt);
-      } else if (!(rx & (i - 1))) {
-        rmt = (int*) bsg_remote_ptr(__bsg_x + px * i, my, count);
-        push(count, rmt);
-      }
-    }
-  }
-  bsg_fence();
-  bsg_barrier_tile_group_sync();
-#endif
-
-#if STAGE >= 8
-  // X down-sweep iter 3 (kk=2, i=1) — final iter.
-  {
-    int kk = 2;
-    int i = 1;
-    if (__bsg_y == my) {
-      if (!(rx & (kk - 1))) {
-        rmt = (int*) bsg_remote_ptr(__bsg_x + cx * i, my, count);
-        pull(count, rmt);
-      } else if (!(rx & (i - 1))) {
-        rmt = (int*) bsg_remote_ptr(__bsg_x + px * i, my, count);
-        push(count, rmt);
-      }
-    }
-  }
-  bsg_fence();
-  bsg_barrier_tile_group_sync();
-#endif
-
-#if STAGE >= 9
-  // Half-redistribute (y=my pulls from y=my-1; y=my-1 pushes to y=my).
-  if (__bsg_y == my) {
-    rmt = (int*) bsg_remote_ptr(__bsg_x, my - 1, count);
-    pull(count, rmt);
-  } else if (__bsg_y == my - 1) {
-    rmt = (int*) bsg_remote_ptr(__bsg_x, my, count);
-    push(count, rmt);
-  }
-  bsg_fence();
-  bsg_barrier_tile_group_sync();
-#endif
-
-#if STAGE >= 10
-  // Y down-sweep — every core executes the loop, only some do work.
-  for (int kk = my; kk > 1; kk /= 2) {
-    int i = kk / 2;
-    if (!(ry & (kk - 1))) {
-      rmt = (int*) bsg_remote_ptr(__bsg_x, __bsg_y + cy * i, count);
-      pull(count, rmt);
-    } else if (!(ry & (i - 1))) {
-      rmt = (int*) bsg_remote_ptr(__bsg_x, __bsg_y + py * i, count);
-      push(count, rmt);
-    }
-  }
-  bsg_fence();
-  bsg_barrier_tile_group_sync();
-#endif
-
-#if STAGE >= 11
-  // Scatter for j=0.
-  scatter(recv, count, dram, len, 0);
-  bsg_fence();
-  bsg_barrier_tile_group_sync();
-#endif
-
-#if STAGE >= 12
-  // Remaining 7 outer-loop iters using the full prefix_sum() function.
-  int *tmptr = send; send = recv; recv = tmptr;
-  for (int j = 4; j < 32; j += 4) {
-    // One barrier per iter, before scan. Without this, scan reads can
-    // race with the previous iter's scatter writes (NoC + vcache
-    // visibility), giving non-deterministic per-pod output.
+  for (int j = 0; j < 32; j += 4) {
+    // Barrier 1: before scan. Ensures the previous iter's scatter writes
+    // are globally visible before this iter reads from send (= old recv).
     bsg_fence();
     bsg_barrier_tile_group_sync();
+
     dram = send + off;
     for (int k = 0; k < 16; k++) count[k] = 0;
     scan(count, dram, len, j);
+    // Barrier 2 (inside prefix_sum): before reduction. Ensures all tiles'
+    // scan results are visible before any tile starts the up-sweep.
     prefix_sum(count, rx, ry, cx, cy, px, py, mx, my);
     scatter(recv, count, dram, len, j);
     tmptr = send; send = recv; recv = tmptr;
   }
-#endif
 
   bsg_fence();
   bsg_barrier_tile_group_sync();
