@@ -71,6 +71,7 @@ declare -A APP_DIRS=(
 declare -A EXPERIMENT_APPS=(
   [sw1d_cpg_fast]="sw/1d"
   [sw1d_cpg_slow]="sw/1d"
+  [sw1d_preflight]="sw/1d"
   [sw2d_seqlen_fast]="sw/2d"
   [sw2d_seqlen_slow]="sw/2d"
   [nw_seqlen_fast]="nw/baseline nw/naive nw/efficient"
@@ -84,6 +85,7 @@ declare -A EXPERIMENT_APPS=(
 declare -A EXPERIMENT_SPEED=(
   [sw1d_cpg_fast]=fast
   [sw1d_cpg_slow]=slow
+  [sw1d_preflight]=fast
   [sw2d_seqlen_fast]=fast
   [sw2d_seqlen_slow]=slow
   [nw_seqlen_fast]=fast
@@ -101,6 +103,7 @@ Usage: $0 <experiment-name>
 Available experiments (see EXPERIMENTS.md):
   sw1d_cpg_fast       sw/1d CPG × seq_len sweep, fast clock        (50 runs)
   sw1d_cpg_slow       sw/1d, largest seq_len per CPG, slow clock   ( 8 runs)
+  sw1d_preflight      sw/1d suspect-row probes, repeat=1 (use preflight.sh)
   sw2d_seqlen_fast    sw/2d seq_len sweep, fast clock              ( 6 runs)
   sw2d_seqlen_slow    sw/2d seq_len sweep, slow clock              ( 6 runs)
   nw_seqlen_fast      nw/{baseline,naive,efficient} seq_len, fast  (12 runs)
