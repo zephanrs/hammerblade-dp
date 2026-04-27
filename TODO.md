@@ -11,7 +11,7 @@ by `run_experiments.sh` per the per-experiment policy.
 | --- | --- |
 | `sw1d_cpg_fast`     | Use the formula `repeat = round_pow2(70000 / seq_len)` from sw/1d's existing tests.mk header.  num_seq = 1M / seq_len.  Fill in 50 rows. |
 | `sw2d_seqlen_fast`  | Same `cells = num_seq × repeat × seq_len² ≈ 70 G` formula.  Existing rows for seq_len ≤ 192 use repeat=512; new seq_len ∈ {256, 512, 1024} need repeats {256, 128, 64}. |
-| `nw_seqlen_fast`    | **Needs HW data.**  Run repeat=1 sweep, send `kernel_us` per row, set `repeat = round(20 / s)`. |
+| `nw_seqlen_fast`    | **Needs HW data.**  Run repeat=1 sweep, send `kernel_us` per row, set `repeat = round(20 / s)`.  **CAUTION nw/efficient:** the hardware cliff hangs the kernel when `iters/col = num_seq * repeat / 16` is an integer multiple of 32 (= `num_seq × repeat` multiple of 512).  Pick repeat so the product `num_seq × repeat` is a multiple of 16 but NOT a multiple of 512.  Same constraint applies to `repeat=1` calibration: every num_seq used there must already satisfy this rule, but bumping repeat can land back on a multiple of 512 even when num_seq alone was safe. |
 | `radix_sort_fast`   | NUM_ARR already calibrated targeting 1 GB/buffer; verify HBM fits on first run. |
 | `roofline_fast`     | Existing tests.mk has 32 calibrated rows (header table). |
 | `barrier_fast`      | Tune N for ~20 s.  Estimate: default barrier ≈ 1–2 µs ⇒ N ≈ 10 M; linear ≈ 5–10 µs ⇒ N ≈ 2 M.  Verify on first run, retune. |
