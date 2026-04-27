@@ -46,9 +46,7 @@ int roofline_multipod(int argc, char** argv) {
   // Allocate host buffers.
   int* h_input  = (int*)malloc(n_elems * sizeof(int));
   int* h_output = (int*)malloc(n_elems * sizeof(int));
-  // Distinct, sequential data so the systolic kernel's value-change
-  // wakeup never sees two batches with the same slot[BATCH-1] value.
-  for (int i = 0; i < n_elems; i++) h_input[i] = i;
+  for (int i = 0; i < n_elems; i++) h_input[i] = i ^ 0xA5A5A5A5;
 
   hb_mc_device_t device;
   BSG_CUDA_CALL(hb_mc_device_init(&device, "roofline_multipod", HB_MC_DEVICE_ID));
