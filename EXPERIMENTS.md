@@ -86,14 +86,61 @@ time-per-barrier = wall_time / N.
 
 ## Slow clock (subset)
 
-`run_experiments.sh:172-178` divides `repeat /= 20` in slow mode
-unconditionally today.  That's correct for compute-bound rows, wrong
-for memory-bound — slow has constant real-time per DRAM transaction,
-so dividing collapses memory-bound rows into the noise floor.  Per-row
-policy in the run script is still TODO (see TODO.md).
+Slow clock is ~32× slower for compute, ~5.6× slower for memory.
+For each kept row, divide `repeat` by an amount that lands the slow
+wall time in the same ballpark as fast.
 
-_TODO: which subset of fast experiments lift to slow, which rows
-within each, and per-row repeat policy._
+### 1. sw/1d — CPG sweep (largest seq_len per CPG)
+
+Compute-bound, so `repeat /= 16`.
+
+- CPG=1, seq_len=256
+- CPG=2, seq_len=512
+- CPG=4, seq_len=1024
+- CPG=8, seq_len=2048
+- CPG=16, seq_len=4096
+- CPG=32, seq_len=8192
+- CPG=64, seq_len=16384
+- CPG=128, seq_len=32768
+
+**Subtotal: 8 runs**
+
+### 2. sw/2d — full seq_len sweep
+
+Compute-bound, `repeat /= 16`.
+
+- seq_len ∈ {32, 64, 128, 256, 512, 1024} — **6 runs**
+
+**Subtotal: 6 runs**
+
+### 4. radix_sort — full sweep
+
+- SIZE < 65 K (compute-bound, vcache regime): `NUM_ARR /= 16`.
+- SIZE ≥ 65 K (DRAM-bound, post-cliff):       `NUM_ARR /= 16`.
+
+All 18 SIZE rows kept.
+
+**Subtotal: 18 runs**
+
+### 5. dummy/roofline — full OPS sweep
+
+Same 32-row grid as fast (28 ops × 4 UNROLL).  Compute-bound rows
+benefit from `repeat /= 16`; the run script's existing slow path
+already divides everything in the OPS sweep, so no per-row policy
+needed here.
+
+**Subtotal: 32 runs**
+
+### 3 + 6. NOT in slow clock
+
+- `nw/{baseline, naive, efficient}` — skipped.
+- `dummy/barrier_bench` — skipped.
+
+---
+
+## Slow-clock total: **64 runs**
+
+(8 sw/1d + 6 sw/2d + 18 radix_sort + 32 roofline)
 
 ## Diagnostics (already done — for reference)
 
