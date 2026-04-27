@@ -273,16 +273,12 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
       accumulate(count, rmt);
     }
   }
-  // Phase 1 sync (Y up-sweep -> half-combine): y=my-1 (top-half ry=0)
-  // signals y=my (bottom-half ry=0). One pair per column. ~10-20 cyc each.
-  if (__bsg_y == my - 1) {
-    *((volatile int*) bsg_remote_ptr(__bsg_x, my, (void*)&count[16])) = 1;
-  } else if (__bsg_y == my) {
-    int rdy = bsg_lr(&count[16]);
-    if (rdy == 0) bsg_lr_aq(&count[16]);
-    asm volatile("" ::: "memory");
-    count[16] = 0;
-  }
+  // Phase boundary: synchronize all tiles after Y up-sweep before
+  // half-combine reads y=my-1 and before X up-sweep starts. Without this,
+  // intra-up-sweep races (parent at level 2 reads child whose level 1
+  // hasn't completed) corrupt counts non-deterministically.
+  bsg_fence();
+  bsg_barrier_tile_group_sync();
   if (__bsg_y == my) {
     rmt = (int*) bsg_remote_ptr(__bsg_x, my - 1, count);
     accumulate(count, rmt);
@@ -294,20 +290,15 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
         accumulate(count, rmt);
       }
     }
-    // Phase 2 sync (X up-sweep -> seam): (mx-1, my) signals (mx, my).
-    if (__bsg_x == mx - 1) {
-      *((volatile int*) bsg_remote_ptr(mx, my, (void*)&count[16])) = 1;
-    } else if (__bsg_x == mx) {
-      int rdy = bsg_lr(&count[16]);
-      if (rdy == 0) bsg_lr_aq(&count[16]);
-      asm volatile("" ::: "memory");
-      count[16] = 0;
-    }
-    if (__bsg_x == mx) {
-      rmt = (int*) bsg_remote_ptr(mx - 1, my, count);
-      prefix(count, rmt);
-      pull(count, rmt);
-    }
+  }
+  // Phase boundary: synchronize after X up-sweep before the seam
+  // prefix() + pull() reads (mx-1, my)'s X-up-sweep result.
+  bsg_fence();
+  bsg_barrier_tile_group_sync();
+  if (__bsg_y == my && __bsg_x == mx) {
+    rmt = (int*) bsg_remote_ptr(mx - 1, my, count);
+    prefix(count, rmt);
+    pull(count, rmt);
   }
   if (__bsg_x == mx - 1 && __bsg_y == my) {
     rmt = (int*) bsg_remote_ptr(mx, my, count);
