@@ -1,88 +1,109 @@
-# Open work — calibration & sweeps
+# Launch plan & open work
 
-Status of every app whose `tests.mk` is not yet ready for the full
-fast + slow launch.  Slow clock is ~32× slower than fast for compute,
-~5–6× slower for current DRAM-bound code; the framework's per-test
-timeout is 600 s, so any test calibrated above ~18 s fast risks
-timing out at slow clock.
+## Canonical experiments (the launch suite)
 
-## Calibration to ~20 s per fast-clock run
+Each experiment needs a calibrated `tests.mk` (rows ~20 s fast, slow
+auto-scaled to ~/20 by the run script), one fast-clock run, one
+slow-clock run.  `run_experiments.sh:172-178` divides `repeat` by 20
+in slow mode, so per-row work is constant at 20× and slow wall time
+stays under the 600 s timeout.
 
-| App | Status | Next step |
-| --- | --- | --- |
-| `nw/baseline`         | `repeat=1` calibration sweep checked in (3 sizes × 4 seq_len = 12 rows) | Run on hardware, send `kernel_us` per row → set `repeat` to round(20 / s) |
-| `nw/naive`            | `repeat=1` calibration sweep checked in                                | Same — run + report kernel_us, then tune |
-| `nw/efficient`        | `repeat=1` calibration sweep checked in                                | Same — run + report kernel_us, then tune |
-| `dummy/dram_read`     | 9 rows across 256 KB → 16 MB working sets, REPEAT roughed to ~2–5 s   | Run fast + slow on at least one row per working-set size; compare `bw_GB_s` ratios |
-| `dummy/barrier_bench` | 8 rows: {default, linear} × N ∈ {1K, 10K, 100K, 1M}                    | Run fast at minimum; verify `per_barrier_ns` is constant in N (sanity), then set per-app barrier choice based on the comparison |
-| `radix_sort`          | 18 rows targeting 1 GB/buffer (NUM_ARR × SIZE = 256 M ints)            | Run fast; confirm HBM fits.  If room to spare, double NUM_ARR for the pre-cliff (≤ 32 K ints) rows so they hit ~20 s instead of ~3 s |
-
-## Slow-clock sweep strategy — TODO
-
-Decide how to keep slow runs under the 600 s per-test timeout without
-diverging from the fast-clock sweep:
-
-- **Option A — split `tests.mk`**: a sibling `tests.slow.mk` with
-  proportionally smaller `repeat` values per row, selected by the run
-  script when `SLOW_MODE=1`.
-- **Option B — per-row scaling factor**: `tests.mk` carries
-  `repeat_fast` and `repeat_slow`; the makefile picks one based on a
-  `mode=` parameter at generate time.
-- **Option C — one knob, scale at runtime**: kernel reads a `repeat`
-  argument from the host instead of compiling it in;
-  `run_experiments.sh` divides it by ~32 in slow mode.  Simplest
-  deployment-wise but loses the constant-work-per-row property in
-  tests.mk comments.
-
-Pick a policy and apply across all calibration-needing apps before
-launching slow runs.  Compute-bound rows in `sw/*` (~20 s fast →
-~640 s slow) all need the same treatment.
-
-## `sw/*` experiments — confirm canonical sweep
-
-The sw subapps already have calibrated repeats from earlier work; need
-to verify what's still part of the launch and what needs slow-mode
-adjustment per the policy above.
-
-| Subapp | calibrated tests.mk | included in slow sweep? | notes |
+| # | Experiment | Apps | Status |
 | --- | --- | --- | --- |
-| `sw/1d`         | ✓ multi-axis (CPG × seq_len × pod-unique-data) | TODO confirm | many rows; pick a slow subset if needed |
-| `sw/2d`         | ✓ small sweep (4 seq_len + A/B unique-vs-shared)| TODO confirm | see "sw/2d update" below |
-| `sw/1ddb`       | TODO check                                       | TODO confirm | |
-| `sw/banded`     | TODO check                                       | TODO confirm | |
-| `sw/dynamic`    | TODO check                                       | TODO confirm | |
-| `sw/scheduling` | TODO check                                       | TODO confirm | |
+| 1 | **Roofline** (HW BW + GFLOP characterization) | `dummy/roofline`         | Original prefetch+SWP kernel restored.  Re-run fast + slow to regenerate the curve. |
+| 2 | **sw/1d vs sw/2d**                            | `sw/1d`, `sw/2d`         | sw/1d ✓ calibrated.  sw/2d in progress (boundary-only rewrite — see below).  Re-run experiment 2 after sw/2d lands. |
+| 3 | **sw/1d CPG sweep**                           | `sw/1d` (CPG ∈ {1, 8, 16, 128}) | tests.mk already has the sweep.  Needs fast + slow run. |
+| 4 | **nw/{baseline, naive, efficient} comparison**| `nw/baseline`, `nw/naive`, `nw/efficient` | All three carry a `repeat=1` calibration sweep.  Run, send `kernel_us` per row, set `repeat = round(20 / s)`. |
+| 5 | **Barriers (default vs linear)**              | `dummy/barrier_bench`    | App ready, two variants × four `N`.  Run fast + slow.  Optional follow-up: rerun radix_sort with `barrier=linear` once the barrier comparison numbers are in hand. |
+| 6 | **Radix sort**                                | `radix_sort`             | NUM_ARR×SIZE pinned at 256 M ints (~1 GB/buffer).  Run fast first; if HBM has headroom, double pre-cliff rows to land them at ~20 s instead of ~3 s. |
 
-## sw/2d update — TODO
+## In progress
 
-User-flagged: there is a planned update for `sw/2d`.  Details still to
-be captured.  When tackled, document the change here and re-run the
-existing seq-len sweep + the shared-vs-unique A/B pair before
-declaring it done.
+### sw/2d — boundary-only DP storage
 
-## Hardware cliff (resolved as a constraint)
+Today each tile holds its full `QRY_CORE × REF_CORE` DP submatrix
+double-buffered, which puts seq_len ≤ 192 against the 4 KB DMEM
+budget.  We only need the rightmost column + bottommost row of each
+submatrix to send to the east / south neighbors; the interior is
+write-only-throwaway.  Switching to a boundary-only buffer:
 
-`nw/efficient` (and any kernel that does per-iteration DRAM writes
-indexed by `seq_id`) hangs when **iterations per column** (= `num_seq
-/ bsg_tiles_X` = `num_seq / 16`) is an integer multiple of **32**.
-Equivalently: hangs when `num_seq` is an integer multiple of 512.
+- per-buffer DMEM: `(QRY_CORE + REF_CORE) × 4` ints + small wavefront
+- raises the seq_len ceiling from 192 to ~1024+ (exact bound depends
+  on the wavefront / mailbox state we keep)
+- enables a fairer apples-to-apples comparison vs sw/1d at the same
+  large seq_len and a meaningful sw/2d row in experiment 2
 
-Confirmed across `seq_len ∈ {32, 64, 128}`. seq_len=32 fails at
-iters/col ∈ {32, 64, 96}; seq_len=64 and 128 fail at iters/col=256
-(= 8×32). Every non-multiple-of-32 iters/col passes regardless of
-total scale (tested up to ~32k sequences per pod, ~2k iters/col).
+Implement, validate on real hardware (the existing seq-len sweep +
+the shared-vs-unique A/B pair must still pass), then update the
+seq_len ladder in `sw/2d/tests.mk` to the new ceiling and re-run
+experiment 2.
 
-`nw/baseline` does NOT appear affected — it only writes one int per
-sequence to DRAM (no per-cell writes). Tested at `num_seq=32768` (=
-mul of 512) → passed.
+## Calibration-needing apps
 
-**Working hypothesis** for the mechanism: a 32-deep on-chip resource
-(MSHR queue / wormhole router buffer / cache request table) that
-synchronizes across the 16 vcaches per pod when path-write traffic
-recurs at exactly the same hash positions. The 4-way 64-set vcache
-with IPOLY hashing makes simple "cache thrashing" insufficient as an
-explanation, since the cliff is at exact multiples (not "more than"),
-which a capacity story doesn't fit.
+Already covered in the experiments table above; the action is the
+same — fast-clock kernel_us per row → set `repeat`.
 
-**Workaround used everywhere**: pick `num_seq` that is a multiple of
-16 (barrier requirement) but NOT a multiple of 512.
+| App | Status | Action |
+| --- | --- | --- |
+| `nw/baseline`         | `repeat=1` sweep checked in | Fast run, send `kernel_us` per row |
+| `nw/naive`            | `repeat=1` sweep checked in | same |
+| `nw/efficient`        | `repeat=1` sweep checked in | same |
+| `dummy/barrier_bench` | 8 rows: {default, linear} × N ∈ {1K, 10K, 100K, 1M} | Fast run; verify per-barrier latency is constant in N (sanity), then compare default vs linear |
+| `radix_sort`          | 18-row sweep at 1 GB/buffer | Fast run; confirm HBM fits.  If headroom, double pre-cliff rows |
+
+## Resolved findings
+
+### Hardware memory ceiling = 5.6× fast/slow ratio (not 1×, not 32×)
+
+Confirmed by both `dummy/vvadd` (canonical memory-bound) and
+`dummy/roofline` at low AI.  Per-pod fast BW ≈ 0.76 GB/s, slow ≈
+0.14 GB/s — same ratio in both kernels.  Real HBM peak is hundreds
+of GB/s, so we're nowhere near DRAM peak; the ceiling is per-core
+load-issue rate (NoC injection × vcache MSHR depth) which itself
+scales with core clock.  No software fix.  The 5.6× ratio at
+memory-bound is the result we report.
+
+### Hardware cliff: nw/efficient hangs when num_seq is a multiple of 512
+
+Per-iteration DRAM writes indexed by `seq_id` hang when iterations
+per column (= num_seq / bsg_tiles_X = num_seq / 16) is an integer
+multiple of 32.  `nw/baseline` not affected (only writes one int per
+sequence).  Workaround everywhere: pick num_seq that is a multiple
+of 16 but NOT a multiple of 512.  Working hypothesis: a 32-deep
+on-chip resource (MSHR / wormhole-router buffer / cache request
+table) synchronizes across 16 vcaches when path-write traffic
+recurs at exactly the same hash positions.  The 4-way 64-set vcache
+with IPOLY hashing rules out plain capacity thrashing.
+
+### Slow-clock policy
+
+Compute-bound rows must shrink `repeat` to fit the 600 s timeout in
+slow mode.  Memory-bound rows must NOT shrink — slow clock has a
+constant-real-time per memory transaction, so dividing repeat collapses
+the test into the noise floor.
+
+Slow-mode launch list (everything else: skip in slow mode):
+
+| App | Rows in slow mode | Repeat in slow |
+| --- | --- | --- |
+| `radix_sort`     | all 18 rows | SIZE < 65536: `repeat / 20` (compute-bound).  SIZE ≥ 65536: unchanged (memory-bound after vcache cliff). |
+| `nw/efficient`   | all rows    | unchanged (memory-bound: per-iter DRAM writes dominate). |
+| `nw/naive`       | all rows    | unchanged (memory-bound: full DP matrix to DRAM per sequence). |
+| `sw/2d`          | seq_len sweep only (4 rows) | `repeat / 20` (compute-bound).  Skip the shared-vs-unique A/B rows in slow. |
+
+`run_experiments.sh:172-178` currently divides `repeat /= 20`
+unconditionally in slow mode.  TODO: extend so that (a) only the apps
+above run in slow at all, and (b) the divide only fires when a row
+isn't tagged memory-bound.  Implementation sketch: per-app Makefile
+emits `slow = divide | nodivide | skip` to `parameters.mk`; the run
+script reads it and either passes a smaller `repeat=` to make,
+leaves `repeat` alone, or returns early.
+
+## Diagnostic probes (used, not part of the launch)
+
+- `dummy/vvadd` — confirmed the 5.6× memory ceiling on 2026-04-27.
+  Keep around for HW-level sanity.
+- `dummy/dram_read` — early read-only probe; loop got DCE'd
+  (non-volatile pointer, repeated XOR cancels).  Superseded by
+  `dummy/vvadd`.  If a pure-read data point becomes useful, mark the
+  pointer `volatile int *` and rerun.

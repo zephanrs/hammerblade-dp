@@ -1,15 +1,22 @@
-# sw/2d: 2D systolic Smith-Waterman.
-# Each tile owns a QRY_CORE × REF_CORE DMEM submatrix; DMEM holds TWO double-buffered
-# buffer_t structs.  Budget = 4096 bytes.
+# sw/2d: 2D systolic Smith-Waterman, boundary-only DP (single buffer).
 #
-#   seq-len  QRY  REF   1×buf    2×buf   status
-#        32    4    2     ~80 B   ~160 B  ✓
-#        64    8    4    ~180 B   ~360 B  ✓
-#       128   16    8    ~612 B  ~1224 B  ✓
-#       192   24   12   ~1300 B  ~2600 B  ✓
-#       256   32   16   ~2340 B  ~4680 B  ✗ OVERFLOW
+# Each tile only stores its rightmost dp column + bottommost dp row;
+# the interior is computed on the fly with a 1D rolling row.  DMEM is
+# now O(QRY + REF) per tile instead of O(QRY × REF), so seq_len caps at
+# ~2048 (4 KB DMEM budget) instead of 192:
 #
-# Max seq_len = 192.
+#   seq-len  QRY  REF   buf    +working+left_col   total
+#        32    4    2    ~96 B    ~36 B            ~132 B   ✓
+#       128   16    8    ~292 B   ~136 B           ~428 B   ✓
+#       192   24   12    ~432 B   ~204 B           ~636 B   ✓
+#       512   64   32   ~1144 B   ~528 B          ~1672 B   ✓
+#      1024  128   64   ~2244 B  ~1024 B          ~3268 B   ✓
+#      2048  256  128   ~4444 B          —          ~3520 B  ← single buffer
+#      2304  288  144                                ~3952 B  borderline
+#      2560  320  160                                ~4384 B  ✗ OVERFLOW
+#
+# Max seq_len ≈ 2048.  Pre-rewrite max was 192 (full submatrix
+# double-buffered).
 #
 # Timing baseline (measured on hardware):
 #   seq-len=128, num-seq=8192, repeat=16 → 0.759s
@@ -39,6 +46,18 @@ TESTS += seq-len_32__num-seq_32768__repeat_512
 TESTS += seq-len_64__num-seq_16384__repeat_512
 TESTS += seq-len_128__num-seq_8192__repeat_512
 TESTS += seq-len_192__num-seq_4096__repeat_512
+
+# --- Boundary-only ceiling smoke tests ---
+# repeat=1, num_seq=16 (one per X-column).  Tiny runs to verify
+# correctness at each new seq_len.  Once these pass, scale repeat /
+# num_seq up to ~20 s constant-cells per row (see sw/1d's tests.mk
+# for the formula: cells = num_seq × repeat × seq_len² → target ~70 G).
+# FASTA constraint: num_seq × seq_len ≤ 1 MB, so num_seq = 1M / seq_len.
+TESTS += seq-len_256__num-seq_16__repeat_1
+TESTS += seq-len_512__num-seq_16__repeat_1
+TESTS += seq-len_1024__num-seq_16__repeat_1
+TESTS += seq-len_1536__num-seq_16__repeat_1
+TESTS += seq-len_2048__num-seq_16__repeat_1
 
 # --- Shared vs unique pod data (A/B pairs) ---
 # num_seq chosen so pod-unique slice fits in FASTA: num_seq × num_pods × seq_len ≤ 1MB
