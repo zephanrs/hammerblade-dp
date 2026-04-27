@@ -1,5 +1,22 @@
 # Launch plan & open work
 
+## Find repeat counts for every experiment row
+
+Every row of every `tests.mk` needs `repeat` (or `num-arr` for
+radix_sort, `N_BARRIERS` for barrier_bench) calibrated so that fast
+wall time lands at ~20 s.  Slow scaling is then handled automatically
+by `run_experiments.sh` per the per-experiment policy.
+
+| Experiment | Source for repeat values |
+| --- | --- |
+| `sw1d_cpg_fast`     | Use the formula `repeat = round_pow2(70000 / seq_len)` from sw/1d's existing tests.mk header.  num_seq = 1M / seq_len.  Fill in 50 rows. |
+| `sw2d_seqlen_fast`  | Same `cells = num_seq × repeat × seq_len² ≈ 70 G` formula.  Existing rows for seq_len ≤ 192 use repeat=512; new seq_len ∈ {256, 512, 1024} need repeats {256, 128, 64}. |
+| `nw_seqlen_fast`    | **Needs HW data.**  Run repeat=1 sweep, send `kernel_us` per row, set `repeat = round(20 / s)`. |
+| `radix_sort_fast`   | NUM_ARR already calibrated targeting 1 GB/buffer; verify HBM fits on first run. |
+| `roofline_fast`     | Existing tests.mk has 32 calibrated rows (header table). |
+| `barrier_fast`      | Tune N for ~20 s.  Estimate: default barrier ≈ 1–2 µs ⇒ N ≈ 10 M; linear ≈ 5–10 µs ⇒ N ≈ 2 M.  Verify on first run, retune. |
+
+
 ## Canonical experiments (the launch suite)
 
 Each experiment needs a calibrated `tests.mk` (rows ~20 s fast, slow

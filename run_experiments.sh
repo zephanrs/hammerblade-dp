@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
-# run_experiments.sh — build and run all HammerBlade SW/NW/roofline experiments.
+# run_experiments.sh — build and run a named HammerBlade experiment.
 #
 # Runs on real ASIC hardware.  Before running, you MUST have already done:
 #   cd /cluster_src/reset_half && make reset UNIT_ID=2
 #
 # Usage:
-#   ./run_experiments.sh                        # run all apps, all tests
-#   ./run_experiments.sh sw/1d sw/2d            # run specific apps
-#   SLOW_MODE=1 ./run_experiments.sh            # label results as "slow" (run after cool_down)
-#   TIMEOUT=600 ./run_experiments.sh            # per-test timeout in seconds (default 3600)
-#   DRY_RUN=1 ./run_experiments.sh              # print what would run, don't execute
-#   VERBOSE=1 ./run_experiments.sh              # show full make output inline
+#   ./run_experiments.sh <experiment-name>
+#
+# The experiment name dispatches to a fixed set of apps + a speed.  See
+# EXPERIMENTS.md for the canonical list.  Slow experiments automatically
+# invoke `make cool_down UNIT_ID=$UNIT_ID` from /cluster_src/reset_half
+# before launching tests; the script will prompt for sudo if cool_down
+# requires it.
+#
+# Run with no arguments (or --help) to see the list of registered names.
 #
 # Output:
 #   results/results_<timestamp>.csv    — timing data
@@ -42,9 +45,8 @@ UNIT_ID="${UNIT_ID:-2}"
 # is watching for an early timeout.
 TIMEOUT="${TIMEOUT:-600}"
 
-# Speed label: "fast" for normal clock, "slow" for after cool_down (32x slower).
-# Set SLOW_MODE=1 to label results as slow (you must run cool_down manually first).
-SPEED="${SLOW_MODE:+slow}"; SPEED="${SPEED:-fast}"
+# SPEED is set by the experiment registry above.  Slow experiments
+# automatically invoke cool_down (see "Pre-flight cool_down" below).
 
 # Reset command — executed automatically after any test failure/timeout.
 # Uses the BSG cluster reset procedure.
@@ -56,25 +58,75 @@ declare -A APP_DIRS=(
   [sw/2d]="sw/2d"
   [nw/naive]="nw/naive"
   [nw/baseline]="nw/baseline"
+  [nw/efficient]="nw/efficient"
   [dummy/roofline]="dummy/roofline"
+  [dummy/barrier_bench]="dummy/barrier_bench"
   [radix_sort]="radix_sort"
 )
 
-# FULL_APPS: the entire benchmark set. nw/efficient dropped entirely — its
-# Hirschberg hang is parked until we redesign the inter-sequence sync.
-FULL_APPS=(sw/1d sw/2d nw/naive nw/baseline dummy/roofline radix_sort)
-# DEFAULT_APPS: the apps that currently work — what the overnight run uses.
-# Dropped from nightly sweep (kept in FULL_APPS for easy re-enable):
-#   - nw/baseline: hangs on hardware even at repeat=1 (unclear why vs sw/1d)
-#   - radix_sort: compile still broken after multiple fixes; needs more work
-DEFAULT_APPS=(sw/1d sw/2d nw/naive dummy/roofline)
+# ─── Experiment registry ──────────────────────────────────────────────────────
+# Each named experiment maps to a set of apps + a speed label.  EXPERIMENTS.md
+# is the source of truth for what each one runs and how its tests.mk is
+# calibrated.  Slow experiments automatically run cool_down before launch.
+declare -A EXPERIMENT_APPS=(
+  [sw1d_cpg_fast]="sw/1d"
+  [sw1d_cpg_slow]="sw/1d"
+  [sw2d_seqlen_fast]="sw/2d"
+  [sw2d_seqlen_slow]="sw/2d"
+  [nw_seqlen_fast]="nw/baseline nw/naive nw/efficient"
+  [radix_sort_fast]="radix_sort"
+  [radix_sort_slow]="radix_sort"
+  [roofline_fast]="dummy/roofline"
+  [roofline_slow]="dummy/roofline"
+  [barrier_fast]="dummy/barrier_bench"
+)
 
-# Which apps to run (default: DEFAULT_APPS in order).
-if [ $# -gt 0 ]; then
-  RUN_APPS=("$@")
-else
-  RUN_APPS=("${DEFAULT_APPS[@]}")
+declare -A EXPERIMENT_SPEED=(
+  [sw1d_cpg_fast]=fast
+  [sw1d_cpg_slow]=slow
+  [sw2d_seqlen_fast]=fast
+  [sw2d_seqlen_slow]=slow
+  [nw_seqlen_fast]=fast
+  [radix_sort_fast]=fast
+  [radix_sort_slow]=slow
+  [roofline_fast]=fast
+  [roofline_slow]=slow
+  [barrier_fast]=fast
+)
+
+print_experiments() {
+  cat >&2 <<EOF
+Usage: $0 <experiment-name>
+
+Available experiments (see EXPERIMENTS.md):
+  sw1d_cpg_fast       sw/1d CPG × seq_len sweep, fast clock        (50 runs)
+  sw1d_cpg_slow       sw/1d, largest seq_len per CPG, slow clock   ( 8 runs)
+  sw2d_seqlen_fast    sw/2d seq_len sweep, fast clock              ( 6 runs)
+  sw2d_seqlen_slow    sw/2d seq_len sweep, slow clock              ( 6 runs)
+  nw_seqlen_fast      nw/{baseline,naive,efficient} seq_len, fast  (12 runs)
+  radix_sort_fast     radix_sort SIZE × num_arr sweep, fast        (18 runs)
+  radix_sort_slow     radix_sort, slow clock                       (18 runs)
+  roofline_fast       dummy/roofline OPS sweep, fast               (32 runs)
+  roofline_slow       dummy/roofline OPS sweep, slow               (32 runs)
+  barrier_fast        dummy/barrier_bench (default vs linear), fast ( 2 runs)
+EOF
+}
+
+if [ $# -ne 1 ] || [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+  print_experiments
+  exit 1
 fi
+
+EXPERIMENT="$1"
+if [ -z "${EXPERIMENT_APPS[$EXPERIMENT]:-}" ]; then
+  printf "Unknown experiment: %s\n\n" "$EXPERIMENT" >&2
+  print_experiments
+  exit 1
+fi
+
+# shellcheck disable=SC2206
+RUN_APPS=( ${EXPERIMENT_APPS[$EXPERIMENT]} )
+SPEED="${EXPERIMENT_SPEED[$EXPERIMENT]}"
 
 # ─── Logging helpers ──────────────────────────────────────────────────────────
 # All output goes to stdout AND the log file simultaneously.
@@ -94,6 +146,7 @@ log_section() { printf "\n[%s] ${CYAN}=== %s ===${RESET}\n" "$(ts)" "$*"; }
 echo "app,test_name,seq_len,num_seq,repeat,cpg,pod_unique_data,speed,kernel_time_sec,gcups,arith_intensity_ops_per_byte,ops_per_elem,n_elems,achieved_bw_GB_s,achieved_gops_s" > "$CSV"
 
 log "Starting experiment run at $(date)"
+log "Experiment  : $EXPERIMENT"
 log "CSV output  : $CSV"
 log "Log output  : $LOG"
 log "Apps to run : ${RUN_APPS[*]}"
@@ -101,8 +154,22 @@ log "UNIT_ID     : $UNIT_ID"
 log "Speed label : $SPEED"
 log "Timeout     : ${TIMEOUT}s per test"
 [ "${DRY_RUN:-0}" = "1" ] && log_warn "DRY_RUN=1 — no tests will actually execute"
-[ "$SPEED" = "slow" ] && log_warn "SLOW_MODE=1: labeling results as 'slow' (assumes cool_down was already run)"
 echo ""
+
+# ─── Pre-flight cool_down for slow experiments ────────────────────────────────
+# Slow runs require the cores to be cooled down first.  Do it as part of
+# the experiment so the user can't forget; sudo prompts will surface to
+# the terminal when needed.
+if [ "$SPEED" = "slow" ] && [ "${DRY_RUN:-0}" != "1" ]; then
+  log "Slow experiment — running cool_down (may prompt for sudo password)"
+  if ( cd /cluster_src/reset_half && make cool_down UNIT_ID="$UNIT_ID" ); then
+    log "cool_down complete"
+  else
+    log_err "cool_down failed — aborting"
+    exit 1
+  fi
+  echo ""
+fi
 
 # ─── Device reset ─────────────────────────────────────────────────────────────
 # Called after any test failure.  Runs RESET_CMD if set, otherwise prints a
@@ -169,11 +236,42 @@ run_test() {
   if [ "${USE_LINEAR_BARRIER:-0}" = "1" ]; then
     make_args+=("USE_LINEAR_BARRIER=1")
   fi
-  # Slow mode: core clock is ~32x slower → reduce repeats ~20x to keep ~20s runs.
-  if [ "$SPEED" = "slow" ] && [ -n "$repeat" ] && [ "$repeat" -gt 1 ]; then
-    local slow_repeat=$(( repeat / 20 ))
-    [ "$slow_repeat" -lt 1 ] && slow_repeat=1
-    make_args+=("repeat=${slow_repeat}")
+
+  # Slow-mode repeat scaling — per experiment, since "compute-bound" vs
+  # "memory-bound" determines how much real-time slow steals.
+  #
+  #   sw1d_cpg_slow / sw2d_seqlen_slow:  compute-bound, /16
+  #   roofline_slow:                      compute-bound at high AI, /16
+  #                                       (low-AI rows under-shoot, fine)
+  #   radix_sort_slow:                    SIZE < 65 K compute-bound (/16),
+  #                                       SIZE ≥ 65 K DRAM-bound (/2);
+  #                                       knob is num-arr, not repeat.
+  if [ "$SPEED" = "slow" ]; then
+    case "$EXPERIMENT" in
+      radix_sort_slow)
+        # Test name format: radix_sort_<SIZE>__num-arr_<N>
+        local vec_size num_arr
+        vec_size="$(extract_param radix_sort "$test_name")"
+        num_arr="$(extract_param num-arr     "$test_name")"
+        if [ -n "$num_arr" ] && [ "$num_arr" -gt 1 ]; then
+          local slow_num_arr
+          if [ -n "$vec_size" ] && [ "$vec_size" -ge 65536 ]; then
+            slow_num_arr=$(( num_arr / 2 ))
+          else
+            slow_num_arr=$(( num_arr / 16 ))
+          fi
+          [ "$slow_num_arr" -lt 1 ] && slow_num_arr=1
+          make_args+=("num-arr=${slow_num_arr}")
+        fi
+        ;;
+      *)
+        if [ -n "$repeat" ] && [ "$repeat" -gt 1 ]; then
+          local slow_repeat=$(( repeat / 16 ))
+          [ "$slow_repeat" -lt 1 ] && slow_repeat=1
+          make_args+=("repeat=${slow_repeat}")
+        fi
+        ;;
+    esac
   fi
 
   # ── Clean before run (required by BSG cluster guide) ──────────────────────

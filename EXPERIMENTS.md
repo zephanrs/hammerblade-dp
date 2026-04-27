@@ -5,12 +5,16 @@ canonical sweep across every experiment; slow is a chosen subset that
 exposes the memory-vs-compute split (~32× compute slowdown vs ~5.6×
 memory slowdown — see Diagnostics).
 
-Each subsection below is intentionally blank — fill in together as we
-finalize the sweep grids.
+Each experiment has a registered name; launch via:
+```
+./run_experiments.sh <experiment-name>
+```
+The script enforces the name and auto-runs `cool_down` for slow
+experiments.
 
 ## Fast clock
 
-### 1. sw/1d — CPG sweep
+### 1. sw/1d — CPG sweep — `sw1d_cpg_fast`
 
 Power-of-2 seq_len, min = `max(32, 4 × CPG)`, max = `256 × CPG`
 (DMEM cap: REF_CORE = seq_len / CPG ≤ 256).  Target 20 s each.
@@ -26,7 +30,7 @@ Power-of-2 seq_len, min = `max(32, 4 × CPG)`, max = `256 × CPG`
 
 **Subtotal: 50 runs**
 
-### 2. sw/2d — seq_len sweep
+### 2. sw/2d — seq_len sweep — `sw2d_seqlen_fast`
 
 Boundary-only DP, verified ceiling = 1024.  Power-of-2 seq_len.
 Target 20 s each.
@@ -35,7 +39,7 @@ Target 20 s each.
 
 **Subtotal: 6 runs**
 
-### 3. nw/ — seq_len sweep
+### 3. nw/ — seq_len sweep — `nw_seqlen_fast`
 
 Three apps: `nw/baseline`, `nw/naive`, `nw/efficient`.  DMEM caps
 seq_len ≤ 256 for nw/efficient (`boundary_scores[seq_len+1]` fits at
@@ -47,7 +51,7 @@ seq_len ≤ 256 for nw/efficient (`boundary_scores[seq_len+1]` fits at
 
 **Subtotal: 12 runs**
 
-### 4. radix_sort — SIZE sweep
+### 4. radix_sort — SIZE sweep — `radix_sort_fast`
 
 Power-of-2 SIZE from 2 K (kernel min) to 256 M ints.  NUM_ARR pinned
 to 1 GB/buffer (NUM_ARR × SIZE = 256 M ints).  Target 20 s each.
@@ -57,7 +61,7 @@ to 1 GB/buffer (NUM_ARR × SIZE = 256 M ints).  Target 20 s each.
 
 **Subtotal: 18 runs**
 
-### 5. dummy/roofline — OPS sweep
+### 5. dummy/roofline — OPS sweep — `roofline_fast`
 
 OPS_PER_ELEM √2-spaced from 1 to 16384, plus an UNROLL sweep at
 ops=1.  All at N_ELEMS=4 M ints.  Target 20 s each.
@@ -69,7 +73,7 @@ ops=1.  All at N_ELEMS=4 M ints.  Target 20 s each.
 
 **Subtotal: 32 runs**
 
-### 6. dummy/barrier_bench — barrier comparison
+### 6. dummy/barrier_bench — barrier comparison — `barrier_fast`
 
 One run per barrier; tune N so each lands at ~20 s, then compute
 time-per-barrier = wall_time / N.
@@ -90,7 +94,7 @@ Slow clock is ~32× slower for compute, ~5.6× slower for memory.
 For each kept row, divide `repeat` by an amount that lands the slow
 wall time in the same ballpark as fast.
 
-### 1. sw/1d — CPG sweep (largest seq_len per CPG)
+### 1. sw/1d — CPG sweep (largest seq_len per CPG) — `sw1d_cpg_slow`
 
 Compute-bound, so `repeat /= 16`.
 
@@ -105,7 +109,7 @@ Compute-bound, so `repeat /= 16`.
 
 **Subtotal: 8 runs**
 
-### 2. sw/2d — full seq_len sweep
+### 2. sw/2d — full seq_len sweep — `sw2d_seqlen_slow`
 
 Compute-bound, `repeat /= 16`.
 
@@ -113,7 +117,7 @@ Compute-bound, `repeat /= 16`.
 
 **Subtotal: 6 runs**
 
-### 4. radix_sort — full sweep
+### 4. radix_sort — full sweep — `radix_sort_slow`
 
 - SIZE < 65 K (compute-bound, vcache regime): `NUM_ARR /= 16`.
 - SIZE ≥ 65 K (DRAM-bound, post-cliff):       `NUM_ARR /= 2`.
@@ -122,7 +126,7 @@ All 18 SIZE rows kept.
 
 **Subtotal: 18 runs**
 
-### 5. dummy/roofline — full OPS sweep
+### 5. dummy/roofline — full OPS sweep — `roofline_slow`
 
 Same 32-row grid as fast (28 ops × 4 UNROLL).  Compute-bound rows
 benefit from `repeat /= 16`; the run script's existing slow path
