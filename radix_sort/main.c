@@ -80,13 +80,20 @@ int kernel_radix_sort(int argc, char **argv) {
 
     hb_mc_dimension_t tg_dim   = {.x = bsg_tiles_X, .y = bsg_tiles_Y};
     hb_mc_dimension_t grid_dim = {.x = 1, .y = 1};
-    uint32_t cuda_argv[3] = {
+    /* STOP_AT env var — see kernel.cpp for stage numbering. Default 100 = full. */
+    const char *stop_str = getenv("STOP_AT");
+    int stop_at = stop_str ? atoi(stop_str) : 100;
+    if (pod == 0) {
+      bsg_pr_info("kernel stop_at = %d\n", stop_at);
+    }
+    uint32_t cuda_argv[4] = {
       (uint32_t)A_device[pod],
       (uint32_t)B_device[pod],
-      (uint32_t)SIZE
+      (uint32_t)SIZE,
+      (uint32_t)stop_at
     };
     BSG_CUDA_CALL(hb_mc_kernel_enqueue(&device, grid_dim, tg_dim,
-                                        "kernel_radix_sort", 3, cuda_argv));
+                                        "kernel_radix_sort", 4, cuda_argv));
   }
 
   /* Launch all pods simultaneously. */

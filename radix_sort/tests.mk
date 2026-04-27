@@ -2,6 +2,8 @@
 # to start with just the smallest correctness size to verify the kernel runs
 # at all within the 60s timeout. Uncomment the larger sizes after.
 
+TESTS += $(call test-name,1024)
+TESTS += $(call test-name,4096)
 TESTS += $(call test-name,16384)
 # TESTS += $(call test-name,65536)
 
