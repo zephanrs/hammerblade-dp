@@ -1,15 +1,10 @@
 #!/usr/bin/env bash
 # bisect_nw_efficient.sh — narrow down the num_seq cliff for nw/efficient on hardware.
-#
-# Classification: simple grep for "BSG REGRESSION TEST PASSED" anywhere in the
-# captured output. PASS if found, FAIL otherwise. TIMEOUT if 60s elapsed.
-#
-# Usage (on the cluster):
-#   cd /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs
-#   git pull
-#   bash bisect_nw_efficient.sh
 
 set -uo pipefail
+
+# Kill the whole process group on Ctrl-C so timeout/make children die too.
+trap 'echo; echo "interrupted"; kill 0 2>/dev/null; exit 130' INT TERM
 
 REPO_ROOT="/home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs"
 APP_DIR="$REPO_ROOT/nw/efficient"
@@ -34,6 +29,10 @@ repeat = 1
 EOF
 done
 
+# Strip ANSI color escapes (e.g. \033[0;32m) so grep matches "PASSED"
+# regardless of whether the BSG framework wrote color codes.
+strip_ansi() { sed -r 's/\x1B\[[0-9;]*[a-zA-Z]//g' "$@" 2>/dev/null; }
+
 printf 'num_seq\tresult\twall_s\tkernel_us\n'
 
 for n in "${SIZES[@]}"; do
@@ -43,17 +42,22 @@ for n in "${SIZES[@]}"; do
 
   start_s=$(date +%s)
   rc=0
-  timeout "$TIMEOUT" make exec.log "HB_MC_DEVICE_ID=${UNIT_ID}" > run.log 2>&1 || rc=$?
+  # `timeout --foreground` lets Ctrl-C in the parent shell propagate.
+  timeout --foreground "$TIMEOUT" make exec.log "HB_MC_DEVICE_ID=${UNIT_ID}" \
+    > run.log 2>&1 || rc=$?
   end_s=$(date +%s)
   wall=$(( end_s - start_s ))
 
-  kus=$(grep -ohP '(?<=Cudalite kernels execution time = )[0-9]+' run.log exec.log 2>/dev/null | tail -1)
+  # Strip ANSI before grepping.
+  combined=$(strip_ansi run.log exec.log)
+
+  kus=$(printf '%s' "$combined" | grep -oP '(?<=Cudalite kernels execution time = )[0-9]+' | tail -1)
   kus="${kus:-NA}"
 
   if [ "$rc" -eq 124 ]; then
     result="TIMEOUT"
     bash -c "$RESET_CMD" > /dev/null 2>&1
-  elif grep -q "BSG REGRESSION TEST PASSED" run.log exec.log 2>/dev/null; then
+  elif printf '%s' "$combined" | grep -q "REGRESSION TEST PASSED"; then
     result="PASS"
   else
     result="FAIL"
