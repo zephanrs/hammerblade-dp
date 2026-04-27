@@ -2,7 +2,10 @@
 # to start with just the smallest correctness size to verify the kernel runs
 # at all within the 60s timeout. Uncomment the larger sizes after.
 
-TESTS += $(call test-name,1024)
+# SIZE must be a multiple of 2048: scan/scatter stride by 16-int cache lines,
+# so per-tile len = SIZE/128 must be ≥ 16 and a multiple of 16. SIZE < 2048
+# causes scatter to over-read and over-write 2× per tile → DRAM corruption.
+TESTS += $(call test-name,2048)
 TESTS += $(call test-name,4096)
 TESTS += $(call test-name,16384)
 # TESTS += $(call test-name,65536)
