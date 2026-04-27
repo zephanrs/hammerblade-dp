@@ -22,6 +22,8 @@ $(addsuffix /parameters.mk,$(TESTS_DIRS)): %/parameters.mk:
 	if [ -n "$$n_elems" ]; then echo n-elems = "$$n_elems" >> $@; fi
 	@repeat="$(call get-repeat,$*)"; \
 	if [ -n "$$repeat" ]; then echo repeat = "$$repeat" >> $@; fi
+	@unroll="$(call get-unroll,$*)"; \
+	if [ -n "$$unroll" ]; then echo unroll = "$$unroll" >> $@; fi
 
 include $(HB_HAMMERBENCH_PATH)/mk/testbench_common.mk
 

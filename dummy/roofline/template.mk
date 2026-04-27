@@ -26,6 +26,9 @@ endif
 ifdef repeat
 DEFINES += -DREPEAT=$(repeat)
 endif
+ifdef unroll
+DEFINES += -DUNROLL=$(unroll)
+endif
 
 FLAGS     = -g -Wall -Wno-unused-function -Wno-unused-variable
 CFLAGS   += -std=c99 $(FLAGS)
@@ -50,6 +53,9 @@ RISCV_CCPPFLAGS += -DN_ELEMS=$(n-elems)
 endif
 ifdef repeat
 RISCV_CCPPFLAGS += -DREPEAT=$(repeat)
+endif
+ifdef unroll
+RISCV_CCPPFLAGS += -DUNROLL=$(unroll)
 endif
 
 RISCV_TARGET_OBJECTS = kernel.rvo

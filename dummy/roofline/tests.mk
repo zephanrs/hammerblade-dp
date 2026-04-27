@@ -70,3 +70,12 @@ TESTS += ops_6144__n-elems_4194304__repeat_16
 TESTS += ops_8192__n-elems_4194304__repeat_12
 TESTS += ops_12288__n-elems_4194304__repeat_9
 TESTS += ops_16384__n-elems_4194304__repeat_7
+
+# ── UNROLL sweep at the memory-bound knee (ops=1) ─────────────────────────────
+# unroll=1 reproduces the old latency-bound behaviour (~0.42 GB/s, 6x fast/slow);
+# unroll=8/16 should saturate NoC throughput and show the full ~32x fast/slow
+# ratio that vvadd already exhibits.
+TESTS += ops_1__n-elems_4194304__repeat_128__unroll_1
+TESTS += ops_1__n-elems_4194304__repeat_128__unroll_4
+TESTS += ops_1__n-elems_4194304__repeat_128__unroll_8
+TESTS += ops_1__n-elems_4194304__repeat_128__unroll_16
