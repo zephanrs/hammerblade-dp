@@ -1,13 +1,34 @@
 #include <bsg_cuda_lite_barrier.h>
 #include <bsg_manycore.h>
 
-// count[] is extended from 16 to 17 ints. count[0..15] is the bucket-count
-// data path (unchanged). count[16] is the per-tile wakeup flag for push/pull
-// rendezvous: pull writes peer's count[16] = 1 at the end; push waits on own
-// count[16] != 0, then resets. Decoupling the wakeup from count[0] avoids
-// the lr.w.aq race when pull's data write and push's lr/lr_aq overlap.
-// Putting it in the same array means peer's flag is just &rmt[16] — no
-// extra bsg_remote_ptr() call per pull site.
+enum {
+  FLAG_PUSH = 16,
+  FLAG_UP_2 = 17,
+  FLAG_UP_4 = 18,
+  FLAG_UP_8 = 19,
+  FLAG_UP_16 = 20,
+  FLAG_UP_32 = 21,
+  FLAG_UP_64 = 22,
+  FLAG_UP_128 = 23,
+  FLAG_UP_256 = 24,
+  FLAG_PHASE = 25,
+  COUNT_WORDS = 26,
+};
+
+inline __attribute__((always_inline)) void wait_flag(int *count, int flag) {
+  int rdy = bsg_lr(&count[flag]);
+  if (rdy == 0) {
+    bsg_lr_aq(&count[flag]);
+  }
+  asm volatile("" ::: "memory");
+  ((volatile int*)count)[flag] = 0;
+  asm volatile("" ::: "memory");
+}
+
+inline __attribute__((always_inline)) void signal_flag(int *rmt, int flag) {
+  asm volatile("" ::: "memory");
+  ((volatile int*)rmt)[flag] = 1;
+}
 
 /*inline __attribute__((always_inline))*/ void accumulate(int *count,
                                                           int *rmt) {
@@ -54,15 +75,9 @@
 }
 
 /*inline __attribute__((always_inline))*/ void pull(int *count, int *rmt) {
-  register int c = count[0];
+  // Down-sweep exchange: peer gets our old prefix, we advance by peer's total.
+  // The peer must not copy from our count[] after we resume and mutate it.
   register int r0 = rmt[0];
-  rmt[0] = c;
-  // Signal partner NOW — between rmt[0]=c and our own count[i]+=r_i below.
-  // Partner's push wakes here and reads our count[1..15] PRE-accumulation
-  // (matches the original lr-on-count[0] wake point). Putting the signal
-  // at the end of the function changed semantics: partner would see our
-  // POST-accumulation values, breaking the Blelloch down-sweep.
-  ((volatile int*)rmt)[16] = 1;
   register int r1 = rmt[1];
   register int r2 = rmt[2];
   register int r3 = rmt[3];
@@ -78,6 +93,23 @@
   register int r13 = rmt[13];
   register int r14 = rmt[14];
   register int r15 = rmt[15];
+  asm volatile("" ::: "memory");
+  rmt[0] = count[0];
+  rmt[1] = count[1];
+  rmt[2] = count[2];
+  rmt[3] = count[3];
+  rmt[4] = count[4];
+  rmt[5] = count[5];
+  rmt[6] = count[6];
+  rmt[7] = count[7];
+  rmt[8] = count[8];
+  rmt[9] = count[9];
+  rmt[10] = count[10];
+  rmt[11] = count[11];
+  rmt[12] = count[12];
+  rmt[13] = count[13];
+  rmt[14] = count[14];
+  rmt[15] = count[15];
   asm volatile("" ::: "memory");
   count[0] += r0;
   count[1] += r1;
@@ -95,47 +127,11 @@
   count[13] += r13;
   count[14] += r14;
   count[15] += r15;
+  signal_flag(rmt, FLAG_PUSH);
 }
 
-/*inline __attribute__((always_inline))*/ void push(int *count, int *rmt) {
-  // Wait for own count[16] != 0 (sw/1d-style: skip lr_aq if already set).
-  int rdy = bsg_lr(&count[16]);
-  if (rdy == 0) {
-    bsg_lr_aq(&count[16]);
-  }
-  asm volatile("" ::: "memory");
-  count[16] = 0;  // reset for next push/pull pair
-  register int r1 = rmt[1];
-  register int r2 = rmt[2];
-  register int r3 = rmt[3];
-  register int r4 = rmt[4];
-  register int r5 = rmt[5];
-  register int r6 = rmt[6];
-  register int r7 = rmt[7];
-  register int r8 = rmt[8];
-  register int r9 = rmt[9];
-  register int r10 = rmt[10];
-  register int r11 = rmt[11];
-  register int r12 = rmt[12];
-  register int r13 = rmt[13];
-  register int r14 = rmt[14];
-  register int r15 = rmt[15];
-  asm volatile("" ::: "memory");
-  count[1] = r1;
-  count[2] = r2;
-  count[3] = r3;
-  count[4] = r4;
-  count[5] = r5;
-  count[6] = r6;
-  count[7] = r7;
-  count[8] = r8;
-  count[9] = r9;
-  count[10] = r10;
-  count[11] = r11;
-  count[12] = r12;
-  count[13] = r13;
-  count[14] = r14;
-  count[15] = r15;
+/*inline __attribute__((always_inline))*/ void push(int *count) {
+  wait_flag(count, FLAG_PUSH);
 }
 
 inline __attribute__((always_inline)) void prefix(int *count, int *rmt) {
@@ -261,7 +257,7 @@ inline __attribute__((always_inline)) void scatter(int *recv, int *count, int *d
   }
 }
 
-int count[17];   // [0..15] = bucket counts; [16] = wakeup flag
+int count[COUNT_WORDS];   // [0..15] = bucket counts; the rest are wait flags
 
 inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
                        int py, int mx, int my) {
@@ -270,43 +266,64 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
   bsg_fence();
   bsg_barrier_tile_group_sync();
   // Y up-sweep.
-  for (i = 1; i < my; i *= 2) {
+  int up_signal_flag = FLAG_UP_2;
+  for (i = 1; i < my; i *= 2, up_signal_flag++) {
     register int k = 2 * i;
     if (!(ry & (k - 1))) {
+      if (i > 1) {
+        wait_flag(count, up_signal_flag - 1);
+      }
       rmt = (int*) bsg_remote_ptr(__bsg_x, __bsg_y + cy * i, count);
       accumulate(count, rmt);
     }
+    if (k < my && ((ry & ((2 * k) - 1)) == k)) {
+      rmt = (int*) bsg_remote_ptr(__bsg_x, __bsg_y + py * k, count);
+      signal_flag(rmt, up_signal_flag);
+    }
   }
-  // Phase boundary: synchronize all tiles after Y up-sweep before
-  // half-combine reads y=my-1 and before X up-sweep starts. Without this,
-  // intra-up-sweep races (parent at level 2 reads child whose level 1
-  // hasn't completed) corrupt counts non-deterministically.
-  bsg_fence();
-  bsg_barrier_tile_group_sync();
+  // Phase 1 sync: top-half root must finish before bottom-half root combines it.
+  if (__bsg_y == my - 1) {
+    rmt = (int*) bsg_remote_ptr(__bsg_x, my, count);
+    signal_flag(rmt, FLAG_PHASE);
+  } else if (__bsg_y == my) {
+    wait_flag(count, FLAG_PHASE);
+  }
   if (__bsg_y == my) {
     rmt = (int*) bsg_remote_ptr(__bsg_x, my - 1, count);
     accumulate(count, rmt);
     // X up-sweep.
-    for (i = 1; i < mx; i *= 2) {
+    up_signal_flag = FLAG_UP_2;
+    for (i = 1; i < mx; i *= 2, up_signal_flag++) {
       register int k = 2 * i;
       if (!(rx & (k - 1))) {
+        if (i > 1) {
+          wait_flag(count, up_signal_flag - 1);
+        }
         rmt = (int*) bsg_remote_ptr(__bsg_x + cx * i, __bsg_y, count);
         accumulate(count, rmt);
       }
+      if (k < mx && ((rx & ((2 * k) - 1)) == k)) {
+        rmt = (int*) bsg_remote_ptr(__bsg_x + px * k, __bsg_y, count);
+        signal_flag(rmt, up_signal_flag);
+      }
     }
   }
-  // Phase boundary: synchronize after X up-sweep before the seam
-  // prefix() + pull() reads (mx-1, my)'s X-up-sweep result.
-  bsg_fence();
-  bsg_barrier_tile_group_sync();
+  // Phase 2 sync: left-half X root must finish before the seam prefix reads it.
+  if (__bsg_y == my) {
+    if (__bsg_x == mx - 1) {
+      rmt = (int*) bsg_remote_ptr(mx, my, count);
+      signal_flag(rmt, FLAG_PHASE);
+    } else if (__bsg_x == mx) {
+      wait_flag(count, FLAG_PHASE);
+    }
+  }
   if (__bsg_y == my && __bsg_x == mx) {
     rmt = (int*) bsg_remote_ptr(mx - 1, my, count);
     prefix(count, rmt);
     pull(count, rmt);
   }
   if (__bsg_x == mx - 1 && __bsg_y == my) {
-    rmt = (int*) bsg_remote_ptr(mx, my, count);
-    push(count, rmt);
+    push(count);
   }
   for (k = mx; k > 1; k /= 2) {
     register int i = k / 2;
@@ -315,8 +332,7 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
         rmt = (int*) bsg_remote_ptr(__bsg_x + cx * i, my, count);
         pull(count, rmt);
       } else if (!(rx & (i - 1))) {
-        rmt = (int*) bsg_remote_ptr(__bsg_x + px * i, my, count);
-        push(count, rmt);
+        push(count);
       }
     }
   }
@@ -324,8 +340,7 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
     rmt = (int*) bsg_remote_ptr(__bsg_x, my - 1, count);
     pull(count, rmt);
   } else if (__bsg_y == my - 1) {
-    rmt = (int*) bsg_remote_ptr(__bsg_x, my, count);
-    push(count, rmt);
+    push(count);
   }
   for (k = my; k > 1; k /= 2) {
     register int i = k / 2;
@@ -333,8 +348,7 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
       rmt = (int*) bsg_remote_ptr(__bsg_x, __bsg_y + cy * i, count);
       pull(count, rmt);
     } else if (!(ry & (i - 1))) {
-      rmt = (int*) bsg_remote_ptr(__bsg_x, __bsg_y + py * i, count);
-      push(count, rmt);
+      push(count);
     }
   }
   bsg_fence();
