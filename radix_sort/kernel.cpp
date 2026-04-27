@@ -128,6 +128,7 @@ inline __attribute__((always_inline)) void signal_flag(int *rmt, int flag) {
   count[13] += r13;
   count[14] += r14;
   count[15] += r15;
+  bsg_fence();
   signal_flag(rmt, FLAG_PUSH);
 }
 
