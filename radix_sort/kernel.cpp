@@ -11,8 +11,9 @@ enum {
   FLAG_UP_64 = 22,
   FLAG_UP_128 = 23,
   FLAG_UP_256 = 24,
-  FLAG_PHASE = 25,
-  COUNT_WORDS = 26,
+  FLAG_PHASE_Y = 25,
+  FLAG_PHASE_X = 26,
+  COUNT_WORDS = 27,
 };
 
 inline __attribute__((always_inline)) void wait_flag(int *count, int flag) {
@@ -284,9 +285,9 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
   // Phase 1 sync: top-half root must finish before bottom-half root combines it.
   if (__bsg_y == my - 1) {
     rmt = (int*) bsg_remote_ptr(__bsg_x, my, count);
-    signal_flag(rmt, FLAG_PHASE);
+    signal_flag(rmt, FLAG_PHASE_Y);
   } else if (__bsg_y == my) {
-    wait_flag(count, FLAG_PHASE);
+    wait_flag(count, FLAG_PHASE_Y);
   }
   if (__bsg_y == my) {
     rmt = (int*) bsg_remote_ptr(__bsg_x, my - 1, count);
@@ -312,9 +313,9 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
   if (__bsg_y == my) {
     if (__bsg_x == mx - 1) {
       rmt = (int*) bsg_remote_ptr(mx, my, count);
-      signal_flag(rmt, FLAG_PHASE);
+      signal_flag(rmt, FLAG_PHASE_X);
     } else if (__bsg_x == mx) {
-      wait_flag(count, FLAG_PHASE);
+      wait_flag(count, FLAG_PHASE_X);
     }
   }
   if (__bsg_y == my && __bsg_x == mx) {
