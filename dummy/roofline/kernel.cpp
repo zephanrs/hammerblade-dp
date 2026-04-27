@@ -79,7 +79,9 @@
 #define BATCH    16
 #define PHASES   2
 #define SLOTS    (PHASES * BATCH)
-#define SENTINEL 0x80000000
+// Cast away the int↔unsigned narrowing of 0x80000000 so brace-init compiles
+// with -Wnarrowing.  The bit pattern is still INT_MIN.
+#define SENTINEL ((int)0x80000000)
 
 // Tile-local DMEM mailbox.  Each tile has one of these; the upstream
 // neighbour writes to ours, the downstream neighbour increments ours.
