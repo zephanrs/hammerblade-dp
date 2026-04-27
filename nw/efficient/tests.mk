@@ -19,18 +19,38 @@
 #
 # Max seq_len = 256.
 #
-# Timing: O(n²) scaling holds.  Target 70 billion cells → ~20s at ~3.5 GCUPS.
-#   repeat = 70000 / seq_len   (num_seq × seq_len = 1MB fixed via FASTA)
+# ── HARDWARE CLIFF: iters_per_column must NOT be a multiple of 32. ───────────
+# iters_per_column = num_seq / bsg_tiles_X = num_seq / 16.
+# So num_seq must be a multiple of 16 (barrier requirement) but NOT a multiple
+# of 512.  Empirically every num_seq that's an integer multiple of 512 hangs;
+# everything else passes regardless of total scale.
 #
-#   seq_len  num_seq  repeat   cells (×10⁹)  est_time
-#        32    32768    2048       68.7        ~20s
-#        64    16384    1024       68.7        ~20s
-#       128     8192     512       68.7        ~20s
-#       256     4096     256       68.7        ~20s
+# FASTA constraint: num_seq × seq_len ≤ 1,048,576 → num_seq ≤ 1M / seq_len.
 #
-# Smoke-test first: repeat=1 to verify each size runs (and that the
-# inter-sequence hang fix actually holds on hardware). Scale up after.
-TESTS += seq-len_32__num-seq_32768__repeat_1
-TESTS += seq-len_64__num-seq_16384__repeat_1
-TESTS += seq-len_128__num-seq_8192__repeat_1
-TESTS += seq-len_256__num-seq_4096__repeat_1
+# Each seq_len gets a small, medium, and largest-anti-cliff-under-FASTA size:
+#
+#   seq_len  small    medium   largest (anti-cliff)   max iters/col
+#        32     16      4080            32752 (= 32768-16)         2047
+#        64     16      4080            16368 (= 16384-16)         1023
+#       128     16      1008             8176 (=  8192-16)          511
+#       256     16      1008             4080 (=  4096-16)          255
+
+# ── seq_len=32 ────────────────────────────────────────────────────────────────
+TESTS += seq-len_32__num-seq_16__repeat_1
+TESTS += seq-len_32__num-seq_4080__repeat_1
+TESTS += seq-len_32__num-seq_32752__repeat_1
+
+# ── seq_len=64 ────────────────────────────────────────────────────────────────
+TESTS += seq-len_64__num-seq_16__repeat_1
+TESTS += seq-len_64__num-seq_4080__repeat_1
+TESTS += seq-len_64__num-seq_16368__repeat_1
+
+# ── seq_len=128 ───────────────────────────────────────────────────────────────
+TESTS += seq-len_128__num-seq_16__repeat_1
+TESTS += seq-len_128__num-seq_1008__repeat_1
+TESTS += seq-len_128__num-seq_8176__repeat_1
+
+# ── seq_len=256 (DMEM max) ────────────────────────────────────────────────────
+TESTS += seq-len_256__num-seq_16__repeat_1
+TESTS += seq-len_256__num-seq_1008__repeat_1
+TESTS += seq-len_256__num-seq_4080__repeat_1

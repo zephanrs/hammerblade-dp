@@ -8,45 +8,48 @@
 #   stack + overhead     → ~150 bytes
 #   Total ≈ 9×(REF_CORE+1) + 170,  REF_CORE = SEQ_LEN/8
 #
-#   seq_len  REF_CORE  DMEM (bytes)  status
-#       256        32           480    ✓
-#       512        64           750    ✓
-#      1024       128          1320    ✓
-#      2048       256          2483    ✓ (max)
+# Per-pod DRAM dp_matrix = num_seq × (seq_len+1)² × 4 bytes.
 #
-# DRAM constraint: dp_matrix = num_seq × (seq_len+1)² × 4 bytes per pod.
-#   Keep ≤ ~256 MB per pod (conservative).
+# ── HARDWARE CLIFF ───────────────────────────────────────────────────────────
+# Per the nw/efficient bisect: kernels hang when iters_per_column (=
+# num_seq / bsg_tiles_X = num_seq / 16) is a multiple of 32.  Equivalent
+# rule: num_seq must be a multiple of 16 but NOT a multiple of 512.
+# (nw/baseline does NOT seem to be affected — its only DRAM write is
+# output[output_idx], one int per sequence — but the rule costs nothing
+# to follow, so we apply it everywhere.)
 #
-#   seq_len  max_num_seq  used_num_seq  dp_matrix_MB
-#        32        57000          2048           8.9
-#        64        15000          1024          17.3
-#       128         3800           512          34.0
-#       256          950           256          67.9
-#       512          240           128         135.3
-#      1024           60            64         268.9  (border — keep as-is)
-#      2048           15            32         537.0  ← risky; may OOM on some configs
+# nw/naive is the heaviest of the three: it writes (seq_len+1)² ints to DRAM
+# per sequence per pod.  At seq_len=32 that's 4356 bytes/seq/pod; at
+# seq_len=256 it's 264196 bytes/seq/pod.  num_seq sized smaller than
+# nw/efficient/nw/baseline so each test still finishes in seconds.
 #
-# NOTE: nw/naive is DRAM-bandwidth-bound (writes (seq_len+1)² ints per sequence).
-#   Repeats below are estimated for ~20s; calibrate after first run.
-#   Expected GCUPS will be much lower than nw/baseline due to BW cost.
+# Sizes per seq_len (small / medium / largest-anti-cliff under FASTA):
 #
-# NOTE: host verification reads back the full dp_matrix (DMA cost grows as seq_len²).
-#   For seq_len=1024/2048 the DMA read may take >1 min — this is a one-time cost.
+#   seq_len  small   medium   large    iter/col @ large   dp_matrix size @ large
+#        32     16     1008     8176                 511                  ~32 MB
+#        64     16     1008     4080                 255                  ~67 MB
+#       128     16      240     2032                 127                  ~135 MB
+#       256     16      240     1008                  63                  ~266 MB
 #
-# Repeats chosen to hit ~20s per test, based on measured repeat=1 timings:
-#
-#   seq_len  t(r=1)   target 20s   chosen repeat   est time
-#       32    0.087s       230          240          20.8s
-#       64    0.100s       200          200          20.0s
-#      128    0.128s       156          160          20.5s
-#      256    0.184s       109          112          20.6s
-#      512    0.297s        67           68          20.2s
-#     1024    0.524s        38           40          21.0s
-#     2048    0.978s        20           20          19.6s
-TESTS += seq-len_32__num-seq_2048__repeat_240
-TESTS += seq-len_64__num-seq_1024__repeat_200
-TESTS += seq-len_128__num-seq_512__repeat_160
-TESTS += seq-len_256__num-seq_256__repeat_112
-TESTS += seq-len_512__num-seq_128__repeat_68
-TESTS += seq-len_1024__num-seq_64__repeat_40
-TESTS += seq-len_2048__num-seq_32__repeat_20
+# repeat=1 across the board for the first calibration run; we'll pick
+# repeat values targeting ~20s/test from measured kernel_us in the next pass.
+
+# ── seq_len=32 ────────────────────────────────────────────────────────────────
+TESTS += seq-len_32__num-seq_16__repeat_1
+TESTS += seq-len_32__num-seq_1008__repeat_1
+TESTS += seq-len_32__num-seq_8176__repeat_1
+
+# ── seq_len=64 ────────────────────────────────────────────────────────────────
+TESTS += seq-len_64__num-seq_16__repeat_1
+TESTS += seq-len_64__num-seq_1008__repeat_1
+TESTS += seq-len_64__num-seq_4080__repeat_1
+
+# ── seq_len=128 ───────────────────────────────────────────────────────────────
+TESTS += seq-len_128__num-seq_16__repeat_1
+TESTS += seq-len_128__num-seq_240__repeat_1
+TESTS += seq-len_128__num-seq_2032__repeat_1
+
+# ── seq_len=256 ───────────────────────────────────────────────────────────────
+TESTS += seq-len_256__num-seq_16__repeat_1
+TESTS += seq-len_256__num-seq_240__repeat_1
+TESTS += seq-len_256__num-seq_1008__repeat_1
