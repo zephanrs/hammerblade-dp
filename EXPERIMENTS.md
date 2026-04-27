@@ -1,277 +1,115 @@
-# HammerBlade Experiment Tracking
+# Experiments — launch plan
 
-## Overview
+Every experiment we will run, fast clock and slow clock.  See `TODO.md`
+for open work; this file is the concrete run plan for the launch.
 
-Applications under study:
-- `sw/1d` — Smith-Waterman, 1D systolic (baseline reference)
-- `sw/2d` — Smith-Waterman, 2D tile-grid systolic
-- `sw/dynamic` — SW with atomic-counter dynamic dispatch (variable-length)
-- `sw/banded` — SW banded diagonal approximation
-- `sw/scheduling` — SW with work-stealing-like scheduler (variable-length)
-- `nw/naive` — Needleman-Wunsch storing full DP matrix
-- `nw/baseline` — NW storing only final score
-- `nw/efficient` — NW Hirschberg traceback (Divide & Conquer)
-- `radix_sort` — 4-bit radix sort with tree prefix-sum
+Conventions:
+- **Ready** — `tests.mk` is calibrated for ~20 s fast rows; just run it.
+- **Calibrate** — `tests.mk` is in `repeat=1` placeholder mode; do one
+  fast pass, send me `kernel_us` per row, I set repeats targeting ~20 s,
+  re-run.
+- **Blocked** — needs an upstream code change before running.
 
-Target: Real 8-pod BSG cluster (16×8 tiles per pod, 8 pods total).
+Slow-clock policy: compute-bound rows shrink `repeat /= 20` to fit the
+600 s per-test timeout (`run_experiments.sh:172-178` does this today
+unconditionally).  Memory-bound rows must NOT shrink — slow clock has
+constant real-time per DRAM transaction, so dividing collapses the test
+into the noise floor.  Per-row policy still needs to land in the run
+script (see TODO.md "Slow-clock policy").
 
----
+## Fast-clock runs
 
-## Bug Inventory (Pass 1 — Analysis)
+| # | Experiment | Apps | Sweep | Rows | State | Wall (est) |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | **Roofline** (HW BW + GFLOP curve) | `dummy/roofline` | OPS_PER_ELEM × UNROLL | 32 | Ready | ~10 min |
+| 2 | **sw/1d vs sw/2d** (1D vs 2D systolic SW) | `sw/1d`, `sw/2d` | seq_len; sw/2d adds shared-vs-unique pair | sw/1d ~30, sw/2d 13 (incl. 5 boundary-only smoke rows) | sw/1d Ready, sw/2d Ready for smoke + Calibrate the seq_len ∈ {256, 512, 1024, 1536, 2048} rows after smoke passes | ~15 min |
+| 3 | **sw/1d CPG sweep** | `sw/1d` | CORES_PER_GROUP ∈ {1, 8, 16, 128} × seq_len | (subset of sw/1d/tests.mk) | Ready | included in #2 |
+| 4 | **nw/{baseline, naive, efficient}** | `nw/baseline`, `nw/naive`, `nw/efficient` | seq_len × num_seq | 12 each | Calibrate (repeat=1 placeholders) | ~3 min calibration pass, ~60 min final |
+| 5 | **Barriers** (default vs linear) | `dummy/barrier_bench` | barrier ∈ {default, linear} × N ∈ {1K, 10K, 100K, 1M} | 8 | Ready | ~2 min |
+| 6 | **Radix sort** | `radix_sort` | SIZE ∈ 2 K…256 M ints, NUM_ARR pinned to 1 GB/buffer | 18 | Ready (NUM_ARR may bump if HBM has headroom) | ~5 min |
 
-### ✅ `sw/1d` — CLEAN
-- Multi-pod loop + `hb_mc_device_pods_kernels_execute` ✓
-- Timing via `clock_gettime` ✓
-- Repeat loop in kernel ✓
-- Dense data layout ✓
-- Status: **No changes needed for correctness. Tests.mk repeat counts may need scaling for 5 s target.**
+**Total fast wall time after calibration:** ~95 min, of which ~30 min
+is `Ready`-now and the rest is gated on the nw/* repeat=1 calibration
++ sw/2d boundary-only smoke results.
 
-### ✅ `nw/baseline` — MOSTLY CLEAN
-- Multi-pod + timing ✓
-- Status: **Tests.mk repeat counts need scaling for 5 s target.**
+## Slow-clock runs
 
-### ✅ `sw/banded` — MOSTLY CLEAN
-- Multi-pod + timing ✓
-- Status: **Tests.mk repeat counts need scaling for 5 s target.**
+| # | Experiment | Apps | Rows in slow | Repeat policy | State |
+| --- | --- | --- | --- | --- | --- |
+| 1 | **Roofline @ slow** | `dummy/roofline` | all 32 | unchanged (current `/20` is fine; both knees of the curve are visible at slow) | Ready |
+| 2 | **Radix sort @ slow** | `radix_sort` | all 18 | SIZE < 65 K: `/ 20`.  SIZE ≥ 65 K: **unchanged** | Blocked on per-row policy in run script |
+| 3 | **nw/efficient @ slow** | `nw/efficient` | all | **unchanged** (memory-bound: per-iter DRAM writes) | Blocked on per-row policy + nw repeat calibration |
+| 4 | **nw/naive @ slow** | `nw/naive` | all | **unchanged** (memory-bound: full DP matrix to DRAM) | Blocked on per-row policy + nw repeat calibration |
+| 5 | **sw/2d @ slow** (seq_len sweep only) | `sw/2d` | 9 rows: `seq-len_{32,64,128,192,256,512,1024,1536,2048}__num-seq_*__repeat_*`.  **Skip** the shared-vs-unique A/B pair rows. | `/ 20` (compute-bound) | Blocked on per-row "skip in slow" policy + sw/2d larger-seq_len calibration |
 
-### ✅ `sw/2d` — MOSTLY CLEAN
-- Multi-pod + timing ✓
-- Validation only checks first sequence per pod — acceptable for benchmark
-- Status: **Tests.mk repeat counts need scaling for 5 s target.**
+**Apps NOT in the slow-clock run:**
+- `sw/1d` — compute-bound, sweep is comprehensive at fast; 32× slowdown adds nothing new.
+- `nw/baseline` — compute-bound, redundant given nw/efficient + nw/naive characterize the memory side.
+- `dummy/barrier_bench` — per-barrier latency at slow is informative but tangential; defer.
+- `dummy/vvadd`, `dummy/dram_read` — diagnostic probes, already done at slow.
 
----
+## Run commands
 
-### 🐛 `radix_sort` — MULTIPLE BUGS
-
-**BUG R1 — `template.mk` line 3: hardcoded single-pod machine path**
-```makefile
-override BSG_MACHINE_PATH = $(REPLICANT_PATH)/machines/pod_X1Y1_ruche_X16Y8_hbm_one_pseudo_channel
-```
-This forces the simulator 1-pod machine for all runs. Must be removed for real hardware.
-Fix: remove line; let `BSG_MACHINE_PATH` come from cluster environment.
-
-**BUG R2 — `template.mk` line 20: wrong source file extension**
-```makefile
-TEST_SOURCES = main.cpp   # ← file is main.c, not main.cpp
-```
-The actual source is `main.c`. `compilation.mk` only picks up `.cpp` for this variable.
-Fix: `TEST_SOURCES = main.c`
-
-**BUG R3 — `template.mk`: missing `HB_HAMMERBENCH_PATH`**
-All other apps define `HB_HAMMERBENCH_PATH ?= $(abspath $(APP_PATH)/../../../..)`.
-`radix_sort/template.mk` never sets it but uses `$(EXAMPLES_PATH)` which depends on it.
-Fix: add `HB_HAMMERBENCH_PATH ?= $(abspath $(APP_PATH)/../../../..)` after `include app_path.mk`.
-
-**BUG R4 — `main.c`: old single-pod DMA API**
-```c
-hb_mc_device_dma_to_device(...)   // old name
-hb_mc_device_dma_to_host(...)     // old name
-hb_mc_device_tile_groups_execute(...)  // only launches current pod
-```
-Must use:
-```c
-hb_mc_device_transfer_data_to_device(...)
-hb_mc_device_transfer_data_to_host(...)
-hb_mc_device_pods_kernels_execute(...)   // launches all pods simultaneously
+All commands assume working dir
+`/home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs`.
+Always `git pull` first.  Between fast and slow runs, the cluster guide
+requires:
+```bash
+cd /cluster_src/reset_half && make cool_down UNIT_ID=2 && cd -
 ```
 
-**BUG R5 — `main.c`: no kernel timing**
-No `clock_gettime` around the kernel launch. Cannot collect performance data.
+### Fast (in order)
 
-**BUG R6 — `main.c`: result read from wrong buffer after kernel**
-The kernel does 8 sort passes (j=0,4,8,...,28). After an even number of swaps the data is back in the original `send` buffer (A). The host reads `A_device` — this is correct (8 is even). But needs verification if pass count changes.
+```bash
+# 1. Roofline
+./run_experiments.sh dummy/roofline
 
-**BUG R7 — `main.c`: no repeat loop, too small for DRAM bandwidth test**
-For cache-flush / DRAM bandwidth test, need >128 kB data. Need both a large SIZE and a repeat mechanism since radix_sort has no inner repeat loop in the kernel.
+# 2 + 3. sw/1d (multi-axis incl. CPG sweep) + sw/2d
+./run_experiments.sh sw/1d sw/2d
 
-**FEATURE R8 — barrier override for linear_barrier**
-Need a way to compile the kernel with `barriers/linear_barrier.S` in place of the default `bsg_barrier_hw_tile_group_sync`. Plan: add `BARRIER_OVERRIDE` make variable.
+# 4a. nw/* — calibration pass at repeat=1
+./run_experiments.sh nw/baseline nw/naive nw/efficient
+# Send me the kernel_us per row → I set repeats → push
+git pull
+./run_experiments.sh nw/baseline nw/naive nw/efficient   # 4b. final
 
----
+# 5. Barriers
+./run_experiments.sh dummy/barrier_bench
 
-### 🐛 `sw/scheduling` — BUGS
-
-**BUG S1 — `template.mk` line 8: hardcoded single-pod machine path**
-```makefile
-override BSG_MACHINE_PATH = $(REPLICANT_PATH)/machines/bigblade_pod_X1Y1_ruche_X16Y8_hbm_one_pseudo_channel
-```
-Fix: remove line.
-
-**BUG S2 — `main.cpp`: missing kernel timing**
-`hb_mc_device_pods_kernels_execute` is called without `clock_gettime` before/after.
-Fix: wrap with `clock_gettime` + `print_kernel_launch_time`.
-
-**BUG S3 — `main.cpp`: missing `#include "../../common/host_bench.hpp"`**
-`print_kernel_launch_time` is from `host_bench.hpp` but it's not included.
-Fix: add include.
-
----
-
-### 🐛 `sw/dynamic` — BUGS
-
-**BUG D1 — `kernel.cpp` lines 135, 149: wrong stride for array access**
-```cpp
-uint8_t *ref_src = &ref[ref_len * input_id + (CORE_ID * ref_core)];  // WRONG
-qry_char = qry[qry_len * input_id + i];                               // WRONG
-```
-The host sends data in dense (fixed-stride) layout with stride `MAX_SEQ_LEN`. But the kernel uses the variable per-sequence length `ref_len`/`qry_len` as the stride. For fixed-length sequences this happens to be the same value, but it is semantically wrong and will break for variable-length inputs.
-Fix: use `MAX_SEQ_LEN` as the stride:
-```cpp
-uint8_t *ref_src = &ref[MAX_SEQ_LEN * input_id + (CORE_ID * ref_core)];
-qry_char = qry[MAX_SEQ_LEN * input_id + i];
+# 6. Radix sort
+./run_experiments.sh radix_sort
 ```
 
-**BUG D2 — `main.cpp`: sends packed data but kernel expects dense layout**
-```cpp
-pack_variable_stride_sequences(query, qry_lens, num_seq, seq_len, packed_query);
-htod_job.push_back({d_query, packed_query, ...});
+### Slow (after `cool_down`, after per-row policy lands)
+
+```bash
+SLOW_MODE=1 ./run_experiments.sh dummy/roofline
+SLOW_MODE=1 ./run_experiments.sh radix_sort
+SLOW_MODE=1 ./run_experiments.sh nw/efficient nw/naive
+SLOW_MODE=1 ./run_experiments.sh sw/2d   # skips A/B-pair rows automatically once policy lands
 ```
-The `pack_variable_stride_sequences` computes variable-offset packed layout, but the kernel indexes with a fixed-stride assumption. These are inconsistent.
-Fix: remove packing entirely; send the dense `query` and `ref` arrays directly.
-Remove `packed_query`, `packed_ref`, and the `pack_variable_stride_sequences` calls.
 
----
+## Diagnostic probes (already done — for reference)
 
-### 🐛 `nw/efficient` — BUGS
+- `dummy/vvadd` — confirmed ~5.6× memory BW ratio fast/slow on
+  2026-04-27.  Per-pod fast BW ≈ 0.76 GB/s; slow ≈ 0.14 GB/s.  HBM
+  peak is hundreds of GB/s, so the ceiling is per-core load-issue
+  rate (NoC injection × MSHR), not DRAM peak.  No software fix.
+- `dummy/dram_read` — early read-only probe; loop got DCE'd by the
+  optimizer (non-volatile pointer + repeated XOR over even REPEAT
+  cancels).  Superseded by vvadd; recoverable by switching to
+  `volatile int *` if a pure-read data point becomes useful again.
 
-**BUG E1 — `main.cpp`: path buffer scaled by repeat factor — OOM for large repeats**
-```cpp
-BSG_CUDA_CALL(hb_mc_device_malloc(&device, total_num_seq*seq_len*sizeof(int), &d_path));
-int* actual_path = (int*) malloc(total_num_seq*seq_len*sizeof(int));
-```
-`total_num_seq = num_seq * repeat_factor`. For repeat=64, num_seq=32768, seq_len=32:
-32768 × 64 × 32 × 4 B = 268 MB per pod, × 8 pods = beyond practical limits.
-Fix: Allocate path as `num_seq * seq_len` only.
+## Order of operations
 
-**BUG E2 — `kernel.cpp` line 497: path written with repeat-scaled index**
-```cpp
-path[(output_idx * SEQ_LEN) + (core_id * REF_CORE) + col] = split_points[col];
-// output_idx = (repeat * NUM_SEQ) + seq_id
-```
-With the path buffer fixed at `num_seq * seq_len` entries, path must be written with unscaled index:
-```cpp
-path[(seq_id * SEQ_LEN) + (core_id * REF_CORE) + col] = split_points[col];
-```
-Repeat iterations overwrite the same locations — acceptable since validation only checks first pass.
-
-**BUG E3 — `main.cpp` validation: reads `actual_path` with wrong size for repeat**
-`validate_exported_path` is called for indices 0..num_seq-1. With the path buffer fix (E1/E2), this is correct.
-
-**NOTE E4 — `kernel.cpp`: `active_cores` loop starts at 4 — tied to `bsg_tiles_Y=8`**
-The loop `for (int active_cores = 4; active_cores > 1; active_cores >>= 1)` starts at 4.
-This is hardcoded for `bsg_tiles_Y = 8` (4 forward + 4 backward). Will be wrong for other Y sizes.
-Currently we always use 8 Y tiles so this is fine, but worth documenting.
-
----
-
-### 🐛 `nw/naive` — BUGS
-
-**BUG N1 — `main.cpp` line 113: stack VLA for DP matrix — stack overflow for large sequences**
-```cpp
-int H[seq_len+1][seq_len+1];
-```
-For seq_len=2048: (2049)² × 4 B ≈ 16 MB on the stack → guaranteed stack overflow.
-Fix: use `std::vector<int>` with dynamic allocation.
-
-**BUG N2 — `main.cpp`: DP matrix buffer scaled by repeat factor — OOM**
-```cpp
-BSG_CUDA_CALL(hb_mc_device_malloc(&device, total_num_seq*matrix_size*sizeof(int), &d_dp_matrix));
-```
-For repeat=64, num_seq=2048, seq_len=32: 64 × 2048 × 33² × 4 B ≈ 1.2 GB per pod.
-Fix: allocate as `num_seq * matrix_size` only.
-
-**BUG N3 — `kernel.cpp` line 58: output index uses repeat-scaled `output_idx`**
-```cpp
-int *seq_dp = &dp_matrix[output_idx * DP_STRIDE * DP_STRIDE];
-// output_idx = (repeat * NUM_SEQ) + s
-```
-With fix N2, kernel must wrap: `&dp_matrix[s * DP_STRIDE * DP_STRIDE]` (no repeat offset).
-
----
-
-## Tests.mk Scaling for 5 s Target
-
-The user confirmed ~20M repeats of 32×32 ran ≈ 5 s for `sw/1d`. Goal: all apps run ≥ 5 s.
-
-Estimate: 20M iter / 5 s = 4M iter/s for seq_len=32.
-- Throughput scales approximately as O(seq_len²) per iteration.
-- For seq_len=L: repeats needed ≈ 20M × (32/L)²
-
-New test sizes for performance runs (separate from correctness tests):
-
-### sw/1d performance tests
-Existing tests look reasonable. Need to verify with cluster timing.
-
-### nw/baseline performance tests
-Similar structure to sw/1d.
-
-### nw/naive performance tests
-Naive stores full matrix — much slower per sequence. Need fewer sequences.
-Cannot run with repeat factor > 1 until OOM bugs fixed.
-
-### nw/efficient performance tests
-Complex traceback, slower per-sequence than sw/1d.
-
-### sw/dynamic, sw/scheduling performance tests
-Dynamic dispatch overhead means fewer sequences may be needed.
-Repeat loop in dynamic kernel uses `total_num_seq` counter.
-
-### sw/banded performance tests
-Only traces a diagonal band — faster than full SW.
-
-### radix_sort performance tests
-No inner kernel repeat — use large SIZE (e.g., 4M elements = 16 MB > 128 kB).
-Need to run kernel multiple times from host, or add repeat counter.
-
----
-
-## Radix Sort Barrier Comparison
-
-Two variants:
-1. **Base barrier**: `bsg_barrier_hw_tile_group_sync` (built-in hardware barrier)
-2. **Linear barrier**: `barriers/linear_barrier.S` (software AMOADD barrier)
-
-Plan:
-- Add `BARRIER_SRC` variable to `radix_sort/template.mk`
-- If `BARRIER_SRC` is set, compile that `.S` file alongside kernel and provide override symbol
-
-The `radix_sort/kernel.cpp` calls `bsg_barrier_hw_tile_group_sync`. To swap to linear:
-- Add `EXTRA_BARRIER_OBJ` to `RISCV_TARGET_OBJECTS` that provides a wrapper
-- Or: rename the symbol in `linear_barrier.S` to override the default
-
-Since `linear_barrier.S` exports `bsg_barrier_amoadd` (not `bsg_barrier_hw_tile_group_sync`), need a thin wrapper or rename. Simplest approach: add a `custom_barrier.S` that re-exports `bsg_barrier_amoadd` as `bsg_barrier_hw_tile_group_sync` via a trampoline, and link it when `USE_LINEAR_BARRIER=1`.
-
----
-
-## Cluster Configuration Notes
-
-- 8 pods: `hb_mc_device_foreach_pod_id` iterates over all available pods automatically
-- BSG_MACHINE_PATH must be set from the cluster environment (do NOT override in template.mk)
-- Slow/half-speed mode: set via `BSG_MACHINE_HALF_SPEED=1` or per-machine-path; add `HALF_SPEED` flag to run scripts
-
----
-
-## Run Script Plan
-
-`run_experiments.sh`:
-1. For each app × each test configuration:
-   - Build (make in test directory)
-   - Run at full speed → capture `kernel_launch_time_sec=` from stdout
-   - Run at half speed → capture timing
-2. Output CSV: `app, variant, seq_len, num_seq, repeat, speed_mode, kernel_time_sec`
-
----
-
-## Status
-
-| App | Correctness Bugs | Performance Config | Scripts |
-|-----|------------------|--------------------|---------|
-| sw/1d | ✅ Clean | TODO | TODO |
-| sw/2d | ✅ Clean | TODO | TODO |
-| sw/banded | ✅ Clean | TODO | TODO |
-| nw/baseline | ✅ Clean | TODO | TODO |
-| sw/dynamic | 🔴 D1, D2 | TODO | TODO |
-| sw/scheduling | 🔴 S1, S2, S3 | TODO | TODO |
-| nw/naive | 🔴 N1, N2, N3 | TODO | TODO |
-| nw/efficient | 🔴 E1, E2, E3 | TODO | TODO |
-| radix_sort | 🔴 R1–R7 | TODO | TODO |
+1. **Fast roofline + sw/1d + sw/2d + radix_sort + barrier_bench**
+   (~30 min, all `Ready`).
+2. **Fast nw/{baseline, naive, efficient} repeat=1 calibration sweep**
+   (~3 min).  Send me `kernel_us` per row.
+3. **I set repeats in nw/*/tests.mk + sw/2d larger-seq_len rows**.  Push.
+4. **Fast nw/{baseline, naive, efficient} full sweep + sw/2d full**
+   (~60 min).
+5. **Per-row slow policy lands in `run_experiments.sh`**.  Push.
+6. **Slow runs** (~3 hours total — most rows are at unchanged repeat
+   so wall time ≈ fast × 5.6× for memory-bound, fast × 1× for
+   compute-bound after `/20`).
