@@ -56,7 +56,6 @@ for n in "${SIZES[@]}"; do
 
   if [ "$rc" -eq 124 ]; then
     result="TIMEOUT"
-    bash -c "$RESET_CMD" > /dev/null 2>&1
   elif printf '%s' "$combined" | grep -q "REGRESSION TEST PASSED"; then
     result="PASS"
   else
@@ -64,4 +63,12 @@ for n in "${SIZES[@]}"; do
   fi
 
   printf '%d\t%s\t%d\t%s\n' "$n" "$result" "$wall" "$kus"
+
+  # Reset between any non-PASS so a stuck device doesn't cascade. Reset
+  # output goes straight to the terminal so any password prompt is visible.
+  if [ "$result" != "PASS" ]; then
+    echo "  resetting device after ${result}..."
+    bash -c "$RESET_CMD"
+    sleep 2
+  fi
 done
