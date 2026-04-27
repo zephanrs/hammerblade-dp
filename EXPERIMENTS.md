@@ -116,7 +116,7 @@ Compute-bound, `repeat /= 16`.
 ### 4. radix_sort — full sweep
 
 - SIZE < 65 K (compute-bound, vcache regime): `NUM_ARR /= 16`.
-- SIZE ≥ 65 K (DRAM-bound, post-cliff):       `NUM_ARR /= 16`.
+- SIZE ≥ 65 K (DRAM-bound, post-cliff):       `NUM_ARR /= 2`.
 
 All 18 SIZE rows kept.
 
