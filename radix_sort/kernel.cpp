@@ -529,6 +529,11 @@ extern "C" int kernel(int *A, int *B, int N) {
   // Remaining 7 outer-loop iters using the full prefix_sum() function.
   int *tmptr = send; send = recv; recv = tmptr;
   for (int j = 4; j < 32; j += 4) {
+    // One barrier per iter, before scan. Without this, scan reads can
+    // race with the previous iter's scatter writes (NoC + vcache
+    // visibility), giving non-deterministic per-pod output.
+    bsg_fence();
+    bsg_barrier_tile_group_sync();
     dram = send + off;
     for (int k = 0; k < 16; k++) count[k] = 0;
     scan(count, dram, len, j);
