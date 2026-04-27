@@ -57,6 +57,12 @@
   register int c = count[0];
   register int r0 = rmt[0];
   rmt[0] = c;
+  // Signal partner NOW — between rmt[0]=c and our own count[i]+=r_i below.
+  // Partner's push wakes here and reads our count[1..15] PRE-accumulation
+  // (matches the original lr-on-count[0] wake point). Putting the signal
+  // at the end of the function changed semantics: partner would see our
+  // POST-accumulation values, breaking the Blelloch down-sweep.
+  ((volatile int*)rmt)[16] = 1;
   register int r1 = rmt[1];
   register int r2 = rmt[2];
   register int r3 = rmt[3];
@@ -89,8 +95,6 @@
   count[13] += r13;
   count[14] += r14;
   count[15] += r15;
-  asm volatile("" ::: "memory");
-  ((volatile int*)rmt)[16] = 1;  // signal partner's push() to proceed
 }
 
 /*inline __attribute__((always_inline))*/ void push(int *count, int *rmt) {
