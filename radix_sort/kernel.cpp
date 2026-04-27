@@ -345,9 +345,16 @@ extern "C" __attribute__((noinline)) int kernel_radix_sort(int *A, int *B,
   bsg_cuda_print_stat_kernel_start();
   bsg_fence();
   bsg_barrier_hw_tile_group_sync();
-  if (stop_at < 2) goto kernel_end;
+
+  // Declare all locals up front so early-return goto's don't cross
+  // initializations (C++ rule).
   int id, my, mx, cy, cx, py, px, ry, rx;
   int *rmt;
+  int len, off;
+  int *send, *recv, *dram, *tmptr;
+
+  if (stop_at < 2) goto kernel_end;
+
   my = (bsg_tiles_Y / 2);
   mx = (bsg_tiles_X / 2);
   if (__bsg_x < mx) {
@@ -372,9 +379,8 @@ extern "C" __attribute__((noinline)) int kernel_radix_sort(int *A, int *B,
     cy = 1;
     py = -1;
   }
-  int len = N / (bsg_tiles_X * bsg_tiles_Y);
-  int off = id * len;
-  int *send, *recv, *dram, *tmptr;
+  len = N / (bsg_tiles_X * bsg_tiles_Y);
+  off = id * len;
   send = A;
   recv = B;
   for (int j = 0; j < 32; j += 4) {
