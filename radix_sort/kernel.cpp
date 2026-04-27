@@ -1,6 +1,14 @@
 #include <bsg_cuda_lite_barrier.h>
 #include <bsg_manycore.h>
 
+// count[] is extended from 16 to 17 ints. count[0..15] is the bucket-count
+// data path (unchanged). count[16] is the per-tile wakeup flag for push/pull
+// rendezvous: pull writes peer's count[16] = 1 at the end; push waits on own
+// count[16] != 0, then resets. Decoupling the wakeup from count[0] avoids
+// the lr.w.aq race when pull's data write and push's lr/lr_aq overlap.
+// Putting it in the same array means peer's flag is just &rmt[16] — no
+// extra bsg_remote_ptr() call per pull site.
+
 /*inline __attribute__((always_inline))*/ void accumulate(int *count,
                                                           int *rmt) {
   register int r0 = rmt[0];
@@ -81,11 +89,18 @@
   count[13] += r13;
   count[14] += r14;
   count[15] += r15;
+  asm volatile("" ::: "memory");
+  ((volatile int*)rmt)[16] = 1;  // signal partner's push() to proceed
 }
 
 /*inline __attribute__((always_inline))*/ void push(int *count, int *rmt) {
-  bsg_lr(count);
-  bsg_lr_aq(count);
+  // Wait for own count[16] != 0 (sw/1d-style: skip lr_aq if already set).
+  int rdy = bsg_lr(&count[16]);
+  if (rdy == 0) {
+    bsg_lr_aq(&count[16]);
+  }
+  asm volatile("" ::: "memory");
+  count[16] = 0;  // reset for next push/pull pair
   register int r1 = rmt[1];
   register int r2 = rmt[2];
   register int r3 = rmt[3];
@@ -242,7 +257,7 @@ inline __attribute__((always_inline)) void scatter(int *recv, int *count, int *d
   }
 }
 
-int count[16];
+int count[17];   // [0..15] = bucket counts; [16] = wakeup flag
 
 inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
                        int py, int mx, int my) {
