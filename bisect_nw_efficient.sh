@@ -42,11 +42,20 @@ for n in "${SIZES[@]}"; do
 
   start_s=$(date +%s)
   rc=0
-  # `timeout --foreground` lets Ctrl-C in the parent shell propagate.
-  timeout --foreground "$TIMEOUT" make exec.log "HB_MC_DEVICE_ID=${UNIT_ID}" \
+  # --foreground lets Ctrl-C in the parent shell propagate.
+  # -k 5 sends SIGKILL 5s after SIGTERM if the test ignored TERM (it usually
+  # does — test_loader holds the device handle until killed hard).
+  timeout --foreground -k 5 "$TIMEOUT" make exec.log "HB_MC_DEVICE_ID=${UNIT_ID}" \
     > run.log 2>&1 || rc=$?
   end_s=$(date +%s)
   wall=$(( end_s - start_s ))
+
+  # Belt-and-suspenders: nuke any leftover test_loader / make children that
+  # somehow survived. Without this, the device stays held and the next reset
+  # fails silently, cascading FAILs through the rest of the run.
+  pkill -9 -f test_loader 2>/dev/null
+  pkill -9 -f 'make exec.log' 2>/dev/null
+  sleep 1
 
   # Strip ANSI before grepping.
   combined=$(strip_ansi run.log exec.log)
