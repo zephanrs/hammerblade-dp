@@ -1,27 +1,6 @@
 #include <bsg_cuda_lite_barrier.h>
 #include <bsg_manycore.h>
 
-// Hang-bisect: the kernel takes a `phase` arg from the host. If phase < N
-// we early-return before stage N, so a successful kernel exit means we got
-// at least to the start of stage N. The host reads env var STOP_AT (default
-// 100 = full kernel) and passes it as the 4th cuda arg.
-//
-// Stages (in order; stop_at < N means skip stage N+):
-//   1  init barrier only
-//   2  + ID setup
-//   3  + first iter scan
-//   4  + prefix_sum entry barrier
-//   5  + Y up-sweep
-//   6  + half-combine + X up-sweep
-//   7  + seam prefix() + pull() at (mx,my)→(mx-1,my)
-//   8  + seam push() at (mx-1,my)→(mx,my)            ← suspected hang point
-//   9  + X down-sweep loop
-//   10 + half-redistribute (y=my-1↔y=my)
-//   11 + Y down-sweep loop
-//   12 + prefix_sum exit barrier (full prefix_sum)
-//   13 + first iter scatter
-//   14 + remaining 7 outer iters (full kernel)
-
 /*inline __attribute__((always_inline))*/ void accumulate(int *count,
                                                           int *rmt) {
   register int r0 = rmt[0];
@@ -266,12 +245,11 @@ inline __attribute__((always_inline)) void scatter(int *recv, int *count, int *d
 int count[16];
 
 inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
-                       int py, int mx, int my, int stop_at) {
+                       int py, int mx, int my) {
   int *rmt;
   int i, k;
   bsg_fence();
   bsg_barrier_tile_group_sync();
-  if (stop_at < 5) return;
   for (i = 1; i < my; i *= 2) {
     register int k = 2 * i;
     if (!(ry & (k - 1))) {
@@ -279,7 +257,6 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
       accumulate(count, rmt);
     }
   }
-  if (stop_at < 6) return;
   if (__bsg_y == my) {
     rmt = (int*) bsg_remote_ptr(__bsg_x, my - 1, count);
     accumulate(count, rmt);
@@ -290,18 +267,16 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
         accumulate(count, rmt);
       }
     }
-    if (stop_at >= 7 && __bsg_x == mx) {
+    if (__bsg_x == mx) {
       rmt = (int*) bsg_remote_ptr(mx - 1, my, count);
       prefix(count, rmt);
       pull(count, rmt);
     }
   }
-  if (stop_at < 8) return;
   if (__bsg_x == mx - 1 && __bsg_y == my) {
     rmt = (int*) bsg_remote_ptr(mx, my, count);
     push(count, rmt);
   }
-  if (stop_at < 9) return;
   for (k = mx; k > 1; k /= 2) {
     register int i = k / 2;
     if (__bsg_y == my) {
@@ -314,7 +289,6 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
       }
     }
   }
-  if (stop_at < 10) return;
   if (__bsg_y == my) {
     rmt = (int*) bsg_remote_ptr(__bsg_x, my - 1, count);
     pull(count, rmt);
@@ -322,7 +296,6 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
     rmt = (int*) bsg_remote_ptr(__bsg_x, my, count);
     push(count, rmt);
   }
-  if (stop_at < 11) return;
   for (k = my; k > 1; k /= 2) {
     register int i = k / 2;
     if (!(ry & (k - 1))) {
@@ -333,79 +306,51 @@ inline void prefix_sum(int *count, int rx, int ry, int cx, int cy, int px,
       push(count, rmt);
     }
   }
-  if (stop_at < 12) return;
   bsg_fence();
   bsg_barrier_tile_group_sync();
 }
 
-// Renamed from kernel_radix_sort → kernel to match the convention every other
-// app in this repo uses. The host's hb_mc_kernel_enqueue passes the function
-// name as a string; the runtime resolves it from the binary's symbol table.
-// Whether or not "kernel" is hard-required, matching the working apps removes
-// one variable while debugging the launch hang.
-extern "C" __attribute__((noinline)) int kernel(int *A, int *B,
-                                                int N,
-                                                int stop_at) {
-  // Match sw/1d's order exactly: init, sync, print_stat_start.
+extern "C" int kernel(int *A, int *B, int N) {
+  // Same prologue/epilogue order as sw/1d.
   bsg_barrier_tile_group_init();
   bsg_barrier_tile_group_sync();
   bsg_cuda_print_stat_kernel_start();
 
-  // Declare all locals up front so early-return goto's don't cross
-  // initializations (C++ rule).
-  int id, my, mx, cy, cx, py, px, ry, rx;
-  int *rmt;
-  int len, off;
-  int *send, *recv, *dram, *tmptr;
-
-  if (stop_at < 2) goto kernel_end;
-
-  my = (bsg_tiles_Y / 2);
-  mx = (bsg_tiles_X / 2);
+  int my = bsg_tiles_Y / 2;
+  int mx = bsg_tiles_X / 2;
+  int rx, ry, cx, cy, px, py, id;
   if (__bsg_x < mx) {
     rx = mx - 1 - __bsg_x;
     id = __bsg_x * bsg_tiles_Y;
-    cx = -1;
-    px = 1;
+    cx = -1; px = 1;
   } else {
     rx = __bsg_x - mx;
     id = (bsg_tiles_X - rx - 1) * bsg_tiles_Y;
-    cx = 1;
-    px = -1;
+    cx = 1; px = -1;
   }
   if (__bsg_y < my) {
     ry = my - 1 - __bsg_y;
     id += __bsg_y;
-    cy = -1;
-    py = 1;
+    cy = -1; py = 1;
   } else {
     ry = __bsg_y - my;
     id += bsg_tiles_Y - 1 - ry;
-    cy = 1;
-    py = -1;
+    cy = 1; py = -1;
   }
-  len = N / (bsg_tiles_X * bsg_tiles_Y);
-  off = id * len;
-  send = A;
-  recv = B;
+  int len = N / (bsg_tiles_X * bsg_tiles_Y);
+  int off = id * len;
+  int *send = A;
+  int *recv = B;
+  int *dram, *tmptr;
   for (int j = 0; j < 32; j += 4) {
     dram = send + off;
-    for (int k = 0; k < 16; k++) {
-      count[k] = 0;
-    }
+    for (int k = 0; k < 16; k++) count[k] = 0;
     scan(count, dram, len, j);
-    if (stop_at < 4 && j == 0) goto kernel_end;
-    prefix_sum(count, rx, ry, cx, cy, px, py, mx, my, stop_at);
-    if (stop_at < 13 && j == 0) goto kernel_end;
+    prefix_sum(count, rx, ry, cx, cy, px, py, mx, my);
     scatter(recv, count, dram, len, j);
-    if (stop_at < 14 && j == 0) goto kernel_end;
-    tmptr = send;
-    send = recv;
-    recv = tmptr;
+    tmptr = send; send = recv; recv = tmptr;
   }
 
-kernel_end:
-  // Match sw/1d's order exactly: fence, sync, fence, print_stat_end.
   bsg_fence();
   bsg_barrier_tile_group_sync();
   bsg_fence();
