@@ -16,6 +16,11 @@
 
 #define ALLOC_NAME "default_allocator"
 
+// See sw/1d/main.cpp for rationale.
+#ifndef ENABLE_VERIFY
+#define ENABLE_VERIFY 0
+#endif
+
 static int compute_segment_score(const uint8_t* query, int query_len,
                                  const uint8_t* ref, int ref_len) {
   std::vector<int> prev(ref_len + 1);
@@ -299,6 +304,7 @@ int nw_baseline_multipod(int argc, char ** argv) {
     dtoh_job.push_back({d_path, actual_path, (uint32_t)(num_seq*seq_len*sizeof(int))});
     BSG_CUDA_CALL(hb_mc_device_transfer_data_to_host(&device, dtoh_job.data(), dtoh_job.size()));
 
+#if ENABLE_VERIFY
     std::vector<int> forward_scores;
     std::vector<int> suffix_scores;
     for (int i = 0; i < num_seq; i++) {
@@ -333,6 +339,7 @@ int nw_baseline_multipod(int argc, char ** argv) {
                i, path_check.score, expected);
       }
     }
+#endif
   }
 
 

@@ -16,6 +16,11 @@
 
 #define ALLOC_NAME "default_allocator"
 
+// See sw/1d/main.cpp for rationale.
+#ifndef ENABLE_VERIFY
+#define ENABLE_VERIFY 0
+#endif
+
 #ifndef POD_UNIQUE_DATA
 #define POD_UNIQUE_DATA 0
 #endif
@@ -118,6 +123,7 @@ int sw_multipod(int argc, char ** argv) {
     dtoh_job.push_back({d_output, actual_output, total_num_seq*sizeof(int)});
     BSG_CUDA_CALL(hb_mc_device_transfer_data_to_host(&device, dtoh_job.data(), dtoh_job.size()));
 
+#if ENABLE_VERIFY
     const int expected = sw_reference_score(&query[0], seq_len, &ref[0], seq_len);
     const int actual = actual_output[0];
     if (actual != expected) {
@@ -126,6 +132,7 @@ int sw_multipod(int argc, char ** argv) {
     } else {
       printf("correct: first sequence matches expected score %d\n", expected);
     }
+#endif
   }
 
 

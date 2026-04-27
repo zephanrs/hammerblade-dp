@@ -159,19 +159,32 @@ log "Timeout     : ${TIMEOUT}s per test"
 [ "${DRY_RUN:-0}" = "1" ] && log_warn "DRY_RUN=1 — no tests will actually execute"
 echo ""
 
-# ─── Pre-flight cool_down for slow experiments ────────────────────────────────
-# Slow runs require the cores to be cooled down first.  Do it as part of
-# the experiment so the user can't forget; sudo prompts will surface to
-# the terminal when needed.
-if [ "$SPEED" = "slow" ] && [ "${DRY_RUN:-0}" != "1" ]; then
-  log "Slow experiment — running cool_down (may prompt for sudo password)"
-  if ( cd /cluster_src/reset_half && make cool_down UNIT_ID="$UNIT_ID" ); then
-    log "cool_down complete"
+# ─── Pre-flight reset (always) + cool_down (slow only) ───────────────────────
+# Always reset so the device starts in a known fast-clock state, regardless
+# of what previous runs left it in.  For slow experiments, chain cool_down
+# after the reset (cool_down engages the 32× slow clock).  Both commands run
+# in the visible terminal — sudo prompts surface to the user (per project
+# guidance: never silence reset/cool_down output).
+if [ "${DRY_RUN:-0}" != "1" ]; then
+  log "Pre-flight reset (may prompt for sudo password)"
+  if ( cd /cluster_src/reset_half && make reset UNIT_ID="$UNIT_ID" ); then
+    log "reset complete"
   else
-    log_err "cool_down failed — aborting"
+    log_err "reset failed — aborting"
     exit 1
   fi
   echo ""
+
+  if [ "$SPEED" = "slow" ]; then
+    log "Slow experiment — running cool_down (may prompt for sudo password)"
+    if ( cd /cluster_src/reset_half && make cool_down UNIT_ID="$UNIT_ID" ); then
+      log "cool_down complete"
+    else
+      log_err "cool_down failed — aborting"
+      exit 1
+    fi
+    echo ""
+  fi
 fi
 
 # ─── Device reset ─────────────────────────────────────────────────────────────
@@ -430,4 +443,27 @@ if [ "$n_fail" -gt 0 ]; then
   log_err "Failed/Timeout : $n_fail"
 else
   log "Failed/Timeout : 0"
+fi
+
+# ─── Archive on user confirmation ────────────────────────────────────────────
+# Prompts the user to mark this run as successful.  On "y", moves CSV + log
+# into results/success/, so failed/aborted runs stay easy to ignore in
+# results/.  Skipped automatically when stdin isn't a TTY (nohup, CI) — in
+# that case mark by hand later.
+SUCCESS_DIR="$OUT_DIR/success"
+if [ -t 0 ] && [ "${DRY_RUN:-0}" != "1" ]; then
+  echo ""
+  printf "[%s] Mark this run as successful and archive to %s? [y/N] " "$(ts)" "$SUCCESS_DIR"
+  read -r reply
+  case "$reply" in
+    y|Y|yes|YES)
+      mkdir -p "$SUCCESS_DIR"
+      mv "$CSV" "$SUCCESS_DIR/"
+      mv "$LOG" "$SUCCESS_DIR/"
+      log_ok "Archived $(basename "$CSV") and $(basename "$LOG") to $SUCCESS_DIR"
+      ;;
+    *)
+      log "Left in $OUT_DIR (not archived)"
+      ;;
+  esac
 fi

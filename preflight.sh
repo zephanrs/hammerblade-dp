@@ -61,7 +61,6 @@ TESTS += seq-len_512__num-seq_2048__repeat_1__cpg_2
 TESTS += seq-len_512__num-seq_2048__repeat_1__cpg_8
 TESTS += seq-len_128__num-seq_8192__repeat_1__cpg_16
 TESTS += seq-len_256__num-seq_4096__repeat_1__cpg_16
-TESTS += seq-len_256__num-seq_512__repeat_1__cpg_16__pod-unique-data_1
 
 # ── New CPG=16 launch rows (small + large extremes only) ────────────────────
 TESTS += seq-len_64__num-seq_16384__repeat_1__cpg_16

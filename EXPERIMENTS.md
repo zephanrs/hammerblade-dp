@@ -27,8 +27,14 @@ Power-of-2 seq_len, min = `max(32, 4 × CPG)`, max = `256 × CPG`
 - CPG=32: seq_len ∈ {128, 256, 512, 1024, 2048, 4096, 8192} — **7 runs**
 - CPG=64: seq_len ∈ {256, 512, 1024, 2048, 4096, 8192, 16384} — **7 runs**
 - CPG=128: seq_len ∈ {512, 1024, 2048, 4096, 8192, 16384, 32768} — **7 runs**
+  (seq_len=32768 uses num_seq=24/repeat=3 — FASTA cap = 32 and the usual
+  `1M/seq_len − 16` lands on a power of 2; subtract 8 instead.)
 
 **Subtotal: 50 runs**
+
+> Host-side verification (O(seq_len²) reference DP per sequence) is gated
+> behind `ENABLE_VERIFY=0` in each `main.cpp` so it doesn't dominate
+> wall time at large seq_len.  Flip to 1 only when changing a kernel.
 
 ### 2. sw/2d — seq_len sweep — `sw2d_seqlen_fast`
 

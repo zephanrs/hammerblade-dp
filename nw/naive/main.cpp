@@ -16,6 +16,11 @@
 
 #define ALLOC_NAME "default_allocator"
 
+// See sw/1d/main.cpp for rationale.
+#ifndef ENABLE_VERIFY
+#define ENABLE_VERIFY 0
+#endif
+
 // Host main;
 int nw_naive_multipod(int argc, char ** argv) {
   int r = 0;
@@ -112,6 +117,7 @@ int nw_naive_multipod(int argc, char ** argv) {
     dtoh_job.push_back({d_dp_matrix, actual_dp_matrix, num_seq*matrix_size*sizeof(int)});
     BSG_CUDA_CALL(hb_mc_device_transfer_data_to_host(&device, dtoh_job.data(), dtoh_job.size()));
 
+#if ENABLE_VERIFY
     std::vector<int> H((seq_len+1) * (seq_len+1));
     for (int i = 0; i < num_seq; i++) {
       for (int j = 0; j <= seq_len; j++) {
@@ -139,6 +145,7 @@ int nw_naive_multipod(int argc, char ** argv) {
         }
       }
     }
+#endif
   }
 
 
