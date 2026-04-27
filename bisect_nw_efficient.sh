@@ -55,28 +55,39 @@ for n in "${SIZES[@]}"; do
   wall=$(( end_s - start_s ))
 
   # BSG-library-reported kernel time (more accurate than host clock_gettime).
-  kus=$(grep -oP '(?<=Cudalite kernels execution time = )[0-9]+' run.log | tail -1)
+  # Search both run.log (everything) and exec.log (test program's tee'd output).
+  kus=$(grep -ohP '(?<=Cudalite kernels execution time = )[0-9]+' run.log exec.log 2>/dev/null | tail -1)
   kus="${kus:-NA}"
 
   # Snapshot of any validation/error message — first matching line.
-  detail=$(grep -m1 -E "Mismatch:|Invalid path point:|Path score mismatch:|BSG REGRESSION TEST (FAILED|PASSED)|Segmentation fault|Aborted|core dumped" run.log | sed 's/[[:space:]]*$//' | head -c 120)
+  detail=$(grep -m1 -hE "Mismatch:|Invalid path point:|Path score mismatch:|REGRESSION TEST (FAILED|PASSED)|Segmentation fault|Aborted|core dumped" run.log exec.log 2>/dev/null | sed 's/[[:space:]]*$//' | head -c 120)
   detail="${detail:-(none)}"
 
   result=""
   if [ "$rc" -eq 124 ]; then
     result="TIMEOUT"
     bash -c "$RESET_CMD" > /dev/null 2>&1
-  elif grep -q "BSG REGRESSION TEST PASSED" run.log; then
+  elif grep -qE "REGRESSION TEST PASSED" run.log exec.log 2>/dev/null; then
     result="PASS"
-  elif grep -q "BSG REGRESSION TEST FAILED" run.log; then
+  elif grep -qE "REGRESSION TEST FAILED" run.log exec.log 2>/dev/null; then
     result="FAIL_VALIDATION"
   elif [ -n "$kus" ] && [ "$kus" != "NA" ]; then
     # Kernel ran (we have kernel_us) but no PASSED/FAILED marker — host crashed
-    # mid-validation.
-    result="HOST_CRASH"
+    # mid-validation, OR the regression marker went to a place we didn't search.
+    result="HOST_CRASH_OR_NO_MARKER"
   else
     result="UNKNOWN(rc=${rc})"
     bash -c "$RESET_CMD" > /dev/null 2>&1
   fi
+
+  # Always preserve last 20 lines of the combined output so we can see what
+  # really happened on weird outcomes — these stay in the per-test dir.
+  {
+    echo "=== run.log (last 20) ==="
+    tail -20 run.log 2>/dev/null
+    echo "=== exec.log (last 20) ==="
+    tail -20 exec.log 2>/dev/null
+  } > diag.log
+
   printf '%d\t%s\t%d\t%s\t%s\n' "$n" "$result" "$wall" "$kus" "$detail"
 done
