@@ -1,0 +1,86 @@
+[12:04:44] Starting experiment run at Tue Apr 28 12:04:44 PDT 2026
+[12:04:44] Experiment  : roofline_slow
+[12:04:44] CSV output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260428_120444.csv
+[12:04:44] Log output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260428_120444.log
+[12:04:44] Apps to run : dummy/roofline
+[12:04:44] UNIT_ID     : 2
+[12:04:44] Speed label : slow
+[12:04:44] Timeout     : 240s per test
+
+[12:04:44] Pre-flight reset (may prompt for sudo password)
+sudo /cluster_src/reset_half/hb_board_v0.5_init.bin 2
+[BSG INFO] checking if init full software directory is valid
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 24.6875 degree C
+Remote 1 temperature is 26.5000 degree C
+Remote 2 temperature is 26.9375 degree C
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 24.6875 degree C
+Remote 1 temperature is 26.5000 degree C
+Remote 2 temperature is 26.9375 degree C
+[BSG INFO] cleaning init full software
+[BSG INFO] starting init full software
+[BSG INFO] checking if init full software still running
+[BSG INFO] performing refresh sdr full
+[BSG INFO] finishing init full software
+[BSG INFO] checking if init full software passed
+[BSG INFO] performing refresh sdr init full
+[BSG INFO] cleaning init full software
+[BSG INFO] initialization succeeded
+[12:04:56] reset complete
+
+[12:04:56] Slow experiment — running cool_down (may prompt for sudo password)
+sudo /cluster_src/reset_half/cool_down.py ttyBSG2
+Local  0 temperature is 24.6875 degree C
+Remote 1 temperature is 27.6875 degree C
+Remote 2 temperature is 28.5000 degree C
+[12:04:56] cool_down complete
+
+
+[12:04:56] [0;36m=== dummy/roofline ===[0m
+[12:04:56]   Regenerating test directories for dummy/roofline...
+[12:04:57]   Skipping ops_1024__n-elems_4194304__repeat_66 (not in re-run list)
+[12:04:57]   Skipping ops_128__n-elems_4194304__repeat_128 (not in re-run list)
+[12:04:57]   Skipping ops_12__n-elems_4194304__repeat_128 (not in re-run list)
+[12:04:57]   Skipping ops_1536__n-elems_4194304__repeat_52 (not in re-run list)
+[12:04:57]   Skipping ops_16__n-elems_4194304__repeat_128 (not in re-run list)
+[12:04:57]   Skipping ops_192__n-elems_4194304__repeat_120 (not in re-run list)
+[12:04:57]   Skipping ops_1__n-elems_4194304__repeat_128 (not in re-run list)
+[12:04:57]   Skipping ops_1__n-elems_4194304__repeat_128__unroll_1 (not in re-run list)
+[12:04:57]   Skipping ops_1__n-elems_4194304__repeat_128__unroll_16 (not in re-run list)
+[12:04:57]   Skipping ops_1__n-elems_4194304__repeat_128__unroll_4 (not in re-run list)
+[12:04:57]   Skipping ops_1__n-elems_4194304__repeat_128__unroll_8 (not in re-run list)
+[12:04:57]   Skipping ops_2048__n-elems_4194304__repeat_36 (not in re-run list)
+[12:04:57]   Skipping ops_24__n-elems_4194304__repeat_128 (not in re-run list)
+[12:04:57]   Skipping ops_256__n-elems_4194304__repeat_112 (not in re-run list)
+[12:04:57]   Skipping ops_2__n-elems_4194304__repeat_128 (not in re-run list)
+[12:04:57]   Skipping ops_3072__n-elems_4194304__repeat_30 (not in re-run list)
+[12:04:57]   Skipping ops_32__n-elems_4194304__repeat_128 (not in re-run list)
+[12:04:57]   Skipping ops_384__n-elems_4194304__repeat_104 (not in re-run list)
+[12:04:57]   Skipping ops_3__n-elems_4194304__repeat_128 (not in re-run list)
+[12:04:57]   Skipping ops_4096__n-elems_4194304__repeat_24 (not in re-run list)
+[12:04:57]   Skipping ops_48__n-elems_4194304__repeat_128 (not in re-run list)
+[12:04:57]   Skipping ops_4__n-elems_4194304__repeat_128 (not in re-run list)
+[12:04:57]   Skipping ops_512__n-elems_4194304__repeat_92 (not in re-run list)
+[12:04:57]   Skipping ops_6144__n-elems_4194304__repeat_16 (not in re-run list)
+[12:04:57]   Skipping ops_64__n-elems_4194304__repeat_128 (not in re-run list)
+[12:04:57]   Skipping ops_6__n-elems_4194304__repeat_128 (not in re-run list)
+[12:04:57]   Skipping ops_768__n-elems_4194304__repeat_77 (not in re-run list)
+[12:04:57]   Skipping ops_8__n-elems_4194304__repeat_128 (not in re-run list)
+[12:04:57]   Skipping ops_96__n-elems_4194304__repeat_128 (not in re-run list)
+[12:04:57]   Found 3 test(s)
+[12:05:45] [0;32mOK[0m      dummy/roofline / ops_12288__n-elems_4194304__repeat_9  time=45.37818s  AI=3072.0000 ops/B  bw=0.0224 GB/s  gops=72.5312
+[12:06:49] [0;32mOK[0m      dummy/roofline / ops_16384__n-elems_4194304__repeat_7  time=60.50425s  AI=4096.0000 ops/B  bw=0.0192 GB/s  gops=72.5696
+[12:07:22] [0;32mOK[0m      dummy/roofline / ops_8192__n-elems_4194304__repeat_12  time=30.253921s  AI=2048.0000 ops/B  bw=0.0352 GB/s  gops=72.4448
+
+
+[12:07:22] [0;36m=== Run complete ===[0m
+[12:07:22] Total tests    : 3
+[12:07:22] Results CSV    : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260428_120444.csv
+[12:07:22] Full log       : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260428_120444.log
+[12:07:22] Passed         : 3
+[12:07:22] Failed/Timeout : 0
+
+[12:07:22] Mark this run as successful and archive to /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/success? [y/N] [12:07:32] [0;32mOK[0m  Archived results_20260428_120444.csv and run_20260428_120444.log to /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/success

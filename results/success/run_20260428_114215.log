@@ -1,0 +1,143 @@
+[11:42:15] Starting experiment run at Tue Apr 28 11:42:15 PDT 2026
+[11:42:15] Experiment  : sw1d_cpg_slow
+[11:42:15] CSV output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260428_114215.csv
+[11:42:15] Log output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260428_114215.log
+[11:42:15] Apps to run : sw/1d
+[11:42:15] UNIT_ID     : 2
+[11:42:15] Speed label : slow
+[11:42:15] Timeout     : 60s per test
+
+[11:42:15] Pre-flight reset (may prompt for sudo password)
+sudo /cluster_src/reset_half/hb_board_v0.5_init.bin 2
+[BSG INFO] checking if init full software directory is valid
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.5000 degree C
+Remote 1 temperature is 30.6875 degree C
+Remote 2 temperature is 31.6250 degree C
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.5000 degree C
+Remote 1 temperature is 30.5000 degree C
+Remote 2 temperature is 31.2500 degree C
+[BSG INFO] cleaning init full software
+[BSG INFO] starting init full software
+[BSG INFO] checking if init full software still running
+[BSG INFO] performing refresh sdr full
+[BSG INFO] finishing init full software
+[BSG INFO] checking if init full software passed
+[BSG INFO] performing refresh sdr init full
+[BSG INFO] cleaning init full software
+[BSG INFO] initialization succeeded
+[11:42:27] reset complete
+
+[11:42:27] Slow experiment — running cool_down (may prompt for sudo password)
+sudo /cluster_src/reset_half/cool_down.py ttyBSG2
+Local  0 temperature is 25.5000 degree C
+Remote 1 temperature is 30.5000 degree C
+Remote 2 temperature is 31.3750 degree C
+[11:42:27] cool_down complete
+
+
+[11:42:27] [0;36m=== sw/1d ===[0m
+[11:42:27]   Regenerating test directories for sw/1d...
+[11:42:28]   Skipping seq-len_1024__num-seq_1008__repeat_64 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_1024__num-seq_1008__repeat_64__cpg_128 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_1024__num-seq_1008__repeat_64__cpg_16 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_1024__num-seq_1008__repeat_64__cpg_32 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_1024__num-seq_1008__repeat_64__cpg_64 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_128__num-seq_8176__repeat_512 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_128__num-seq_8176__repeat_512__cpg_1 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_128__num-seq_8176__repeat_512__cpg_16 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_128__num-seq_8176__repeat_512__cpg_2 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_128__num-seq_8176__repeat_512__cpg_32 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_128__num-seq_8176__repeat_512__cpg_4 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_16384__num-seq_48__repeat_4__cpg_128 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_16384__num-seq_48__repeat_4__cpg_64 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_2048__num-seq_496__repeat_32__cpg_128 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_2048__num-seq_496__repeat_32__cpg_16 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_2048__num-seq_496__repeat_32__cpg_32 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_2048__num-seq_496__repeat_32__cpg_64 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_256__num-seq_4080__repeat_256 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_256__num-seq_4080__repeat_256__cpg_16 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_256__num-seq_4080__repeat_256__cpg_2 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_256__num-seq_4080__repeat_256__cpg_32 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_256__num-seq_4080__repeat_256__cpg_4 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_256__num-seq_4080__repeat_256__cpg_64 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_32768__num-seq_24__repeat_3__cpg_128 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_32__num-seq_32752__repeat_2048 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_32__num-seq_32752__repeat_2048__cpg_1 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_32__num-seq_32752__repeat_2048__cpg_2 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_32__num-seq_32752__repeat_2048__cpg_4 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_4096__num-seq_240__repeat_16__cpg_128 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_4096__num-seq_240__repeat_16__cpg_32 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_4096__num-seq_240__repeat_16__cpg_64 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_512__num-seq_2032__repeat_128 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_512__num-seq_2032__repeat_128__cpg_128 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_512__num-seq_2032__repeat_128__cpg_16 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_512__num-seq_2032__repeat_128__cpg_32 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_512__num-seq_2032__repeat_128__cpg_4 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_512__num-seq_2032__repeat_128__cpg_64 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_64__num-seq_16368__repeat_1024 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_64__num-seq_16368__repeat_1024__cpg_1 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_64__num-seq_16368__repeat_1024__cpg_16 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_64__num-seq_16368__repeat_1024__cpg_2 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_64__num-seq_16368__repeat_1024__cpg_4 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_8192__num-seq_112__repeat_8__cpg_128 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Skipping seq-len_8192__num-seq_112__repeat_8__cpg_64 (not in sw1d_cpg_slow row filter)
+[11:42:28]   Found 6 test(s)
+[11:43:05] [0;32mOK[0m      sw/1d / seq-len_1024__num-seq_1008__repeat_64__cpg_4  time=34.130042s  gcups=3.9640
+[11:43:41] [0;32mOK[0m      sw/1d / seq-len_2048__num-seq_496__repeat_32  time=33.088352s  gcups=4.0239
+[11:44:17] [0;32mOK[0m      sw/1d / seq-len_256__num-seq_4080__repeat_256__cpg_1  time=33.422983s  gcups=4.0960
+[11:44:51] [0;32mOK[0m      sw/1d / seq-len_4096__num-seq_240__repeat_16__cpg_16  time=32.051194s  gcups=4.0201
+[11:45:28] [0;32mOK[0m      sw/1d / seq-len_512__num-seq_2032__repeat_128__cpg_2  time=34.096187s  gcups=3.9994
+[11:46:28] [1;33mTIMEOUT[0m sw/1d / seq-len_8192__num-seq_112__repeat_8__cpg_32 (after 60s) — resetting and continuing
+
+[11:46:28] [0;31mERR[0m  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[11:46:28] [0;31mERR[0m    DEVICE RESET REQUIRED — sw/1d / seq-len_8192__num-seq_112__repeat_8__cpg_32 timed out
+[11:46:28] [0;31mERR[0m    Running: cd /cluster_src/reset_half && make reset UNIT_ID=2
+sudo /cluster_src/reset_half/hb_board_v0.5_init.bin 2
+[BSG INFO] checking if init full software directory is valid
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 24.9375 degree C
+Remote 1 temperature is 27.1875 degree C
+Remote 2 temperature is 27.5625 degree C
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 24.9375 degree C
+Remote 1 temperature is 27.3125 degree C
+Remote 2 temperature is 27.6250 degree C
+[BSG INFO] cleaning init full software
+[BSG INFO] starting init full software
+[BSG INFO] checking if init full software still running
+[BSG INFO] performing refresh sdr full
+[BSG INFO] finishing init full software
+[BSG INFO] checking if init full software passed
+[BSG INFO] performing refresh sdr init full
+[BSG INFO] cleaning init full software
+[BSG INFO] initialization succeeded
+[11:46:40] [1;33mWARN[0m   Reset command completed.
+[11:46:40] [1;33mWARN[0m   Slow experiment — re-running cool_down after reset
+sudo /cluster_src/reset_half/cool_down.py ttyBSG2
+Local  0 temperature is 24.9375 degree C
+Remote 1 temperature is 28.3750 degree C
+Remote 2 temperature is 28.9375 degree C
+[11:46:40] [1;33mWARN[0m   cool_down completed.
+[11:46:40] [0;31mERR[0m  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+
+[11:46:40] [0;36m=== Run complete ===[0m
+[11:46:40] Total tests    : 6
+[11:46:40] Results CSV    : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260428_114215.csv
+[11:46:40] Full log       : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260428_114215.log
+[11:46:40] Passed         : 5
+[11:46:40] [0;31mERR[0m  Failed/Timeout : 1
+
+
+[11:46:40] [0;36m=== Failed/Timeout — re-run candidates ===[0m
+[11:46:40] Recorded to: /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/failed_20260428_114215.txt
+         sw/1d                   seq-len_8192__num-seq_112__repeat_8__cpg_32                             TIMEOUT
+
+[11:46:40] Mark this run as successful and archive to /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/success? [y/N] [11:48:28] [0;32mOK[0m  Archived results_20260428_114215.csv and run_20260428_114215.log to /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/success

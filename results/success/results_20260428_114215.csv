@@ -1,0 +1,7 @@
+app,test_name,seq_len,num_seq,repeat,cpg,pod_unique_data,speed,kernel_time_sec,gcups,arith_intensity_ops_per_byte,ops_per_elem,n_elems,achieved_bw_GB_s,achieved_gops_s
+sw/1d,seq-len_1024__num-seq_1008__repeat_64__cpg_4,1024,1008,64,4,0,slow,34.130042,3.9640,2560.0,,,,
+sw/1d,seq-len_2048__num-seq_496__repeat_32,2048,496,32,8,0,slow,33.088352,4.0239,5120.0,,,,
+sw/1d,seq-len_256__num-seq_4080__repeat_256__cpg_1,256,4080,256,1,0,slow,33.422983,4.0960,640.0,,,,
+sw/1d,seq-len_4096__num-seq_240__repeat_16__cpg_16,4096,240,16,16,0,slow,32.051194,4.0201,10240.0,,,,
+sw/1d,seq-len_512__num-seq_2032__repeat_128__cpg_2,512,2032,128,2,0,slow,34.096187,3.9994,1280.0,,,,
+sw/1d,seq-len_8192__num-seq_112__repeat_8__cpg_32,8192,112,8,32,0,slow,TIMEOUT,,,,,,
