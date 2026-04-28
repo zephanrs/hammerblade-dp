@@ -1,7 +1,7 @@
 # Microbenchmark charts
 
 Diagnostic kernels: roofline (compute/BW envelope) and vvadd (memory
-bandwidth probe).  Same conventions as `smithwaterman.md`: 14×8 inches,
+bandwidth probe).  Same conventions as `smithwaterman.md`: 10×8 inches,
 300 dpi.  Regular vs high-bandwidth comparisons use **blue = regular**,
 **orange = high bandwidth** consistently.
 

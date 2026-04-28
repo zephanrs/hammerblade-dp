@@ -5,8 +5,8 @@ Reads CSVs from ``data/<experiment>/`` and writes PNGs under ``charts/``.
 One module-level function per logical chart group; ``main()`` runs them all.
 
 Conventions (project-wide):
-- Aspect ratio 3.5:2 (= 1.75) → figures sized 14×8 inches by default.
-- Wider variant (for plots with more legend / many series): 20×8 inches.
+- Default figure size: 10×8 inches.
+- Wider variant (for plots with more legend / many series): 24×8 inches.
 - DPI 300, PNG only.
 - Sequence-length axis: log base 2, ticks labeled with raw integers
   (32, 64, 128 — never 2^5, 2^6, ...).
@@ -29,8 +29,8 @@ OUT   = REPO / "charts"
 OUT.mkdir(exist_ok=True)
 
 DPI = 300
-SIZE_DEFAULT = (14, 8)   # 3.5:2 aspect
-SIZE_WIDE    = (20, 8)   # 2.5:1 aspect, for many-series plots
+SIZE_DEFAULT = (10, 8)   # 1.25:1 aspect
+SIZE_WIDE    = (24, 8)   # 3:1 aspect, for many-series plots
 
 # Regular vs high-bandwidth comparison colors (project-wide convention).
 COLOR_REGULAR = "#1f77b4"  # blue
