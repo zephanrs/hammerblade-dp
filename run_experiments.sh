@@ -23,6 +23,12 @@
 #   app, test_name, seq_len, num_seq, repeat, cpg, pod_unique_data,
 #   speed, kernel_time_sec, gcups, arith_intensity_ops_per_byte,
 #   ops_per_elem, n_elems, achieved_bw_GB_s, achieved_gops_s
+#
+# In SLOW rows the throughput columns (gcups, achieved_bw_GB_s,
+# achieved_gops_s) are already sim32bw-projected — i.e. slow time scaled
+# down by 32× (and for gcups, additionally accounting for the /16 repeat
+# divisor) so they're directly comparable to fast rows.  kernel_time_sec
+# remains the raw measured slow wall time.
 
 set -uo pipefail
 
@@ -94,6 +100,22 @@ declare -A EXPERIMENT_SPEED=(
   [roofline_fast]=fast
   [roofline_slow]=slow
   [barrier_fast]=fast
+)
+
+# Per-experiment row whitelist.  Rows whose test_name doesn't match an entry
+# in the whitelist are skipped.  Unset → all rows in tests.mk run.
+#
+# Used for slow experiments that subset the fast tests.mk (e.g. sw1d_cpg_slow
+# keeps only the largest seq_len per CPG — 8 rows out of 50).
+declare -A EXPERIMENT_ROW_FILTER=(
+  [sw1d_cpg_slow]="seq-len_256__num-seq_4080__repeat_256__cpg_1
+seq-len_512__num-seq_2032__repeat_128__cpg_2
+seq-len_1024__num-seq_1008__repeat_64__cpg_4
+seq-len_2048__num-seq_496__repeat_32
+seq-len_4096__num-seq_240__repeat_16__cpg_16
+seq-len_8192__num-seq_112__repeat_8__cpg_32
+seq-len_16384__num-seq_48__repeat_4__cpg_64
+seq-len_32768__num-seq_24__repeat_3__cpg_128"
 )
 
 print_experiments() {
@@ -342,18 +364,45 @@ run_test() {
     [ -z "$gops_s"   ] && log_warn "    achieved_gops_s not found in $exec_log"
   fi
 
+  # ── Slow-mode → sim32bw projection ────────────────────────────────────────
+  # Slow clock is 32× slower (compute) / 5.6× slower (memory).  We report
+  # numbers projected onto a "fast clock + 32× memory BW" world: scale
+  # measured slow time by 1/32.  Equivalent: multiply throughput by 32.
+  #
+  # GCUPS additionally needs the slow-mode repeat divisor accounted for —
+  # we passed repeat=$repeat/16 to make, so actual cells executed were
+  # 1/16 of what the test_name encodes.  Net factor for GCUPS in slow:
+  #   gcups_proj = (cells_actual × 32) / t = (cells_csv / 16) × 32 / t
+  #              = 2 × (cells_csv / t)
+  # radix_sort_slow is excluded — it scales num-arr (a different work knob)
+  # and doesn't compute GCUPS.
+  local gcups_factor=1   # multiplied into the cells_csv/t formula
+  local bw_factor=1      # multiplied into the kernel's reported BW / GOPS
+  if [ "$SPEED" = "slow" ] && [ "$EXPERIMENT" != "radix_sort_slow" ]; then
+    gcups_factor=2       # = 32/16 (sim32bw / repeat-div)
+    bw_factor=32         # roofline already reflects actual repeat in its
+                         # internal measurement, so just project ×32
+  fi
+
   # ── Compute derived metrics ────────────────────────────────────────────────
   local gcups="N/A" ai="N/A"
   if [[ "$timing" =~ ^[0-9] ]]; then
     if [ -n "$seq_len" ] && [ -n "$num_seq" ]; then
       gcups=$(python3 -c "
 t=float('$timing'); sl=int('$seq_len'); ns=int('$num_seq'); rp=int('$repeat')
-print(f'{ns*rp*sl*sl/t/1e9:.4f}')" 2>/dev/null || echo "N/A")
+f=${gcups_factor}
+print(f'{f*ns*rp*sl*sl/t/1e9:.4f}')" 2>/dev/null || echo "N/A")
       ai=$(python3 -c "print(f'{5*int(\"$seq_len\")/2:.1f}')" 2>/dev/null || echo "N/A")
     elif [ -n "$ops_per_elem" ]; then
       # Roofline kernel: OI = 2*ops_per_elem / 8
       ai=$(python3 -c "print(f'{2*int(\"$ops_per_elem\")/8:.4f}')" 2>/dev/null || echo "N/A")
     fi
+  fi
+
+  # Project roofline BW/GOPS for slow runs (sim32bw).
+  if [ "$bw_factor" != "1" ]; then
+    [ -n "$bw_GB_s" ] && bw_GB_s=$(python3 -c "print(f'{${bw_factor}*float(\"$bw_GB_s\"):.4f}')" 2>/dev/null || echo "$bw_GB_s")
+    [ -n "$gops_s"  ] && gops_s=$(python3 -c "print(f'{${bw_factor}*float(\"$gops_s\"):.4f}')" 2>/dev/null || echo "$gops_s")
   fi
 
   # ── Report (one line per test) ────────────────────────────────────────────
@@ -413,6 +462,22 @@ for app in "${RUN_APPS[@]}"; do
   if [ ${#test_dirs[@]} -eq 0 ]; then
     log_warn "  No test directories found (parameters.mk missing)"
     continue
+  fi
+
+  # Apply per-experiment row filter (if any) — used by slow experiments that
+  # subset the fast tests.mk.  An unset/empty filter keeps all rows.
+  row_filter="${EXPERIMENT_ROW_FILTER[$EXPERIMENT]:-}"
+  if [ -n "$row_filter" ]; then
+    filtered_dirs=()
+    for tdir in "${test_dirs[@]}"; do
+      tname="$(basename "$tdir")"
+      if echo "$row_filter" | grep -qx "$tname"; then
+        filtered_dirs+=("$tdir")
+      else
+        log "  Skipping $tname (not in $EXPERIMENT row filter)"
+      fi
+    done
+    test_dirs=("${filtered_dirs[@]}")
   fi
 
   log "  Found ${#test_dirs[@]} test(s)"

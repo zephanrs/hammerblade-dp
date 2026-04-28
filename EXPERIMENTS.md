@@ -100,6 +100,12 @@ Slow clock is ~32× slower for compute, ~5.6× slower for memory.
 For each kept row, divide `repeat` by an amount that lands the slow
 wall time in the same ballpark as fast.
 
+> **CSV throughput columns in slow runs are already sim32bw-projected**:
+> `gcups`, `achieved_bw_GB_s`, `achieved_gops_s` are scaled so they're
+> directly comparable to fast-clock rows (slow time × 1/32, plus the
+> /16 repeat divisor for gcups → net ×2 of the cells/t formula).
+> `kernel_time_sec` stays as the raw measured slow wall time.
+
 ### 1. sw/1d — CPG sweep (largest seq_len per CPG) — `sw1d_cpg_slow`
 
 Compute-bound, so `repeat /= 16`.
@@ -158,6 +164,3 @@ needed here.
   2026-04-27.  Per-pod fast BW ≈ 0.76 GB/s; slow ≈ 0.14 GB/s.  HBM
   peak is hundreds of GB/s, so the ceiling is per-core load-issue
   rate (NoC injection × MSHR), not DRAM peak.  No software fix.
-- `dummy/dram_read` — early read-only probe; loop got DCE'd by the
-  optimizer (non-volatile pointer + repeated XOR over even REPEAT
-  cancels).  Superseded by `dummy/vvadd`.

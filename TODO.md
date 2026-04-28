@@ -120,7 +120,3 @@ leaves `repeat` alone, or returns early.
 
 - `dummy/vvadd` — confirmed the 5.6× memory ceiling on 2026-04-27.
   Keep around for HW-level sanity.
-- `dummy/dram_read` — early read-only probe; loop got DCE'd
-  (non-volatile pointer, repeated XOR cancels).  Superseded by
-  `dummy/vvadd`.  If a pure-read data point becomes useful, mark the
-  pointer `volatile int *` and rerun.
