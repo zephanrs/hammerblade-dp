@@ -54,25 +54,27 @@ Common sequence-length range only (sw/2d ceiling = 1024).
 ### `compare_gcups.png`
 ![1D vs 2D GCUPs](compare_gcups.png)
 
-## Effect of high bandwidth
+## Effect of high bandwidth — both kernels are compute-bound
 
 Slow-clock measurements scaled ×32 in time (project to a fast clock with
-proportionally more DRAM bandwidth) → "high bandwidth".  Compute-bound
-rows look identical to regular; memory-bound rows lift.
+proportionally more DRAM bandwidth) → "high bandwidth".  Encoding:
+**color** = regular (blue) vs high bandwidth (orange); **line style +
+marker** = 1D (dashed + circle) vs 2D (solid + square).
 
-### `2d_effect_hibw.png`
+The take-away: regular and high-bandwidth lines lie nearly on top of
+each other for both kernels at every reasonably sized configuration.
+That means **neither kernel is meaningfully memory-bound** — the chip
+is doing roughly the same number of cell updates per second whether
+DRAM is 32× faster or not.
 
-Clear lift at small seq_len (memory-bound regime) — at seq_len=32 the
-chip-wide GCUPs jumps from 7.1 → 16.3 (2.3× lift).  By seq_len=256 the
-two curves overlap (compute-bound).
+The only visible separation is sw/2d at seq_len ≤ 128, where the
+fixed-cost memory phase (kernel-launch / DMA / barrier overhead) is a
+big fraction of the (very short) work.  Even there, the gap closes by
+seq_len=256 and is gone by seq_len=512.  sw/1d's measured points are
+all in the compute-bound regime and the regular/high-bandwidth pairs
+are within ~3 % of each other.
 
-![2D effect of high bandwidth](2d_effect_hibw.png)
+### `sw_compare_hibw.png` / `sw_compare_hibw_wide.png`
 
-### `1d_effect_hibw.png`
-
-Best CPG-per-seq_len comparisons across the four (cpg, seq_len) pairs
-that have both fast and slow data: regular and high-bandwidth land on
-top of each other — sw/1d is compute-bound at every measured config,
-so the projected BW lift gives ≈ no benefit.
-
-![1D effect of high bandwidth](1d_effect_hibw.png)
+![SW: regular vs high bandwidth — 10×8](sw_compare_hibw.png)
+![SW: regular vs high bandwidth — 21×9 wide](sw_compare_hibw_wide.png)
