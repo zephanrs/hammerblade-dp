@@ -245,6 +245,19 @@ parse_exec_val() {
   grep -oP "(?<=${key}=)[0-9.e+\-]+" "$file" 2>/dev/null | tail -1 || true
 }
 
+# Parse the Cudalite kernel execution time from exec.log.
+# Format:  INFO:    Cudalite kernels execution time = 5763366 us
+# Returns the value in seconds (µs/1e6) for higher precision than
+# kernel_launch_time_sec, especially for short kernels (<5 s) where
+# host-side wall-clock timing has a noticeable jitter floor.
+parse_cudalite_sec() {
+  local file="$1"
+  local us
+  us=$(grep -oP 'Cudalite kernels execution time\s*=\s*\K[0-9]+' "$file" 2>/dev/null | tail -1 || true)
+  [ -z "$us" ] && return 0
+  python3 -c "print(${us}/1e6)" 2>/dev/null
+}
+
 # ─── Run one test dir ─────────────────────────────────────────────────────────
 run_test() {
   local app="$1" test_dir="$2"
@@ -347,10 +360,16 @@ run_test() {
   fi
 
   # ── Extract timing ─────────────────────────────────────────────────────────
+  # Prefer the device-side Cudalite µs counter (accurate to 1 µs); fall back
+  # to the host-side kernel_launch_time_sec if for some reason the µs line is
+  # missing.  Short kernels (<5 s) gain meaningful precision from this.
   local timing
-  timing="$(parse_exec_val kernel_launch_time_sec "$exec_log")"
+  timing="$(parse_cudalite_sec "$exec_log")"
   if [ -z "$timing" ]; then
-    printf "[%s] ${YELLOW}WARN${RESET}    %s / %s  no kernel_launch_time_sec in exec.log\n" \
+    timing="$(parse_exec_val kernel_launch_time_sec "$exec_log")"
+  fi
+  if [ -z "$timing" ]; then
+    printf "[%s] ${YELLOW}WARN${RESET}    %s / %s  no kernel timing in exec.log\n" \
       "$(ts)" "$app" "$test_name"
     timing="N/A"
   fi

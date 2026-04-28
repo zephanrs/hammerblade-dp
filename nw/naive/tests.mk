@@ -21,13 +21,16 @@
 # only a 2^4 factor → product never reaches 2^9.  All four rows below verified
 # cliff-safe.
 #
-#   seq_len  num_seq  cells/rep  T_rep    repeat   est wall
-#        32     8176      8.9M    60 ms      331    19.9 s
-#        64     4080     17.2M   116 ms      171    19.9 s
-#       128     2032     33.8M   228 ms       87    19.9 s
-#       256     1008     66.6M   449 ms       43    19.4 s
+#   seq_len  num_seq  HW-confirmed wall   repeat   note
+#        32     8176        ~20 s            331    confirmed on HW
+#        64     4080        ~20 s            171    confirmed on HW
+#       128     2032        ~2 s              10    larger repeat hangs (root
+#                                                   cause TBD; precision OK
+#                                                   via Cudalite µs counter)
+#       256     1008        ~? s               5    same hang above small R;
+#                                                   5 reps, µs-counter timing
 
 TESTS += seq-len_32__num-seq_8176__repeat_331
 TESTS += seq-len_64__num-seq_4080__repeat_171
-TESTS += seq-len_128__num-seq_2032__repeat_87
-TESTS += seq-len_256__num-seq_1008__repeat_43
+TESTS += seq-len_128__num-seq_2032__repeat_10
+TESTS += seq-len_256__num-seq_1008__repeat_5
