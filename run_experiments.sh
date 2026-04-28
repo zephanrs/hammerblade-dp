@@ -80,7 +80,8 @@ declare -A EXPERIMENT_APPS=(
   [sw1d_preflight]="sw/1d"
   [sw2d_seqlen_fast]="sw/2d"
   [sw2d_seqlen_slow]="sw/2d"
-  [nw_seqlen_fast]="nw/baseline nw/naive nw/efficient"
+  [nw_seqlen_fast]="nw/baseline nw/efficient"
+  [nw_naive_fast]="nw/naive"
   [radix_sort_fast]="radix_sort"
   [radix_sort_slow]="radix_sort"
   [roofline_fast]="dummy/roofline"
@@ -95,6 +96,7 @@ declare -A EXPERIMENT_SPEED=(
   [sw2d_seqlen_fast]=fast
   [sw2d_seqlen_slow]=slow
   [nw_seqlen_fast]=fast
+  [nw_naive_fast]=fast
   [radix_sort_fast]=fast
   [radix_sort_slow]=slow
   [roofline_fast]=fast
@@ -128,7 +130,8 @@ Available experiments (see EXPERIMENTS.md):
   sw1d_preflight      sw/1d suspect-row probes, repeat=1 (use preflight.sh)
   sw2d_seqlen_fast    sw/2d seq_len sweep, fast clock              ( 6 runs)
   sw2d_seqlen_slow    sw/2d seq_len sweep, slow clock              ( 6 runs)
-  nw_seqlen_fast      nw/{baseline,naive,efficient} seq_len, fast  ( 9 runs)
+  nw_seqlen_fast      nw/{baseline,efficient} seq_len, fast        ( 6 runs)
+  nw_naive_fast       nw/naive seq_len, fast (split: hangs at scale)( 3 runs)
   radix_sort_fast     radix_sort SIZE × num_arr sweep, fast        (18 runs)
   radix_sort_slow     radix_sort, slow clock                       (18 runs)
   roofline_fast       dummy/roofline OPS sweep, fast               (32 runs)
