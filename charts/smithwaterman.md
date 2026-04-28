@@ -87,7 +87,7 @@ case and unfair to the comparison).  HB die area: 38.875 mm².
 | Device                       | Process    | Peak GCUPs | Area (mm²) | GCUPs / mm² |
 |------------------------------|------------|-----------:|-----------:|------------:|
 | NVIDIA A100 (GPU)            | 7 nm       | 1940       | 826        | 2.35        |
-| NVIDIA V100 (GPU)            | 12 nm FFN  | 162        | 815        | 0.20        |
+| NVIDIA V100 (GPU)            | 12/16 nm   | 162        | 815        | 0.20        |
 | 2× Xeon Skylake-SP (CPU)     | 14 nm      | 734        | 1396       | 0.53        |
 | HB (2D, seq_len=1024)        | 14/16 nm   | 34.41      | 38.88      | 0.89        |
 | HB (1D, seq_len=2048, cpg=8) | 14/16 nm   | 31.45      | 38.88      | 0.81        |
