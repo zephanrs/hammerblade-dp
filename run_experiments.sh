@@ -325,22 +325,19 @@ run_test() {
     esac
   fi
 
-  # ── Clean before run (required by BSG cluster guide) ──────────────────────
-  make -C "$test_dir" clean > /dev/null 2>&1 || true
-
-  # ── Execute ────────────────────────────────────────────────────────────────
+  # ── Execute (with retry-once on timeout) ─────────────────────────────────
+  # `make clean` runs at the start of every attempt — without it, the second
+  # attempt sees the stale exec.log from the timed-out run and short-
+  # circuits, leaving us with empty timing lines.
   local run_log="$test_dir/run.log"
   local exec_log="$test_dir/exec.log"
   local make_cmd=(make -C "$test_dir" exec.log "${make_args[@]}")
 
-  # Run the make command, retrying once if it times out (real-ASIC non-
-  # determinism: vcache/wormhole/router state from prior tests can push a
-  # borderline row over the timeout occasionally).  Pre-retry: full device
-  # reset, then re-run.  A second timeout is recorded as TIMEOUT in the CSV.
   local run_failed=0
   local attempt
   for attempt in 1 2; do
     run_failed=0
+    make -C "$test_dir" clean > /dev/null 2>&1 || true
     if [ "${VERBOSE:-0}" = "1" ]; then
       timeout "$TIMEOUT" "${make_cmd[@]}" || run_failed=$?
     else
@@ -348,7 +345,8 @@ run_test() {
     fi
     # Anything other than timeout → don't retry, drop into the dispatcher.
     [ "$run_failed" -ne 124 ] && break
-    # First timeout → reset and try again.
+    # First timeout → reset and try again (real-ASIC non-determinism in
+    # vcache/wormhole/NoC state can push a borderline row over once).
     if [ "$attempt" -eq 1 ]; then
       printf "[%s] ${YELLOW}TIMEOUT${RESET} %s / %s (after ${TIMEOUT}s, attempt 1) — resetting and retrying once\n" \
         "$(ts)" "$app" "$test_name"
