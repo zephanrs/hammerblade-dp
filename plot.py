@@ -509,12 +509,62 @@ def plot_roofline():
     }
 
 
+NW_STYLES = {
+    "nw/baseline":  ("#2ca02c", "o"),  # green, circle
+    "nw/efficient": ("#d62728", "s"),  # red, square
+    "nw/naive":     ("#9467bd", "^"),  # purple, triangle
+}
+
+
+def plot_nw():
+    """Compare nw/{baseline, efficient, naive} — GCUPs and time/sequence.
+
+    Three implementations, three rows each (seq_len ∈ {32, 64, 128}; 256 was
+    dropped from the launch because nw/efficient hangs there).  Same plot
+    conventions as the sw/* charts: GCUPs ×8 chip-wide, log seq_len axis.
+    """
+    rows = []
+    for d in ("nw_seqlen_fast", "nw_naive_fast"):
+        for c in (DATA / d).glob("results_*.csv"):
+            rows += [r for r in load_csv(c) if is_ok(r)]
+    by_app = {}
+    for r in rows:
+        by_app.setdefault(r["app"], []).append(r)
+    for app in by_app:
+        by_app[app].sort(key=lambda r: int(r["seq_len"]))
+    all_seqlens = sorted({int(r["seq_len"]) for r in rows})
+
+    for size, suffix in ((SIZE_DEFAULT, ""), (SIZE_WIDE, "_wide")):
+        fig, ax = plt.subplots(figsize=size)
+        for app in sorted(by_app):
+            color, marker = NW_STYLES[app]
+            sls   = [int(r["seq_len"]) for r in by_app[app]]
+            gcups = [gcups_chipwide(r) for r in by_app[app]]
+            ax.plot(sls, gcups, marker + "-", color=color, label=app)
+        style_seqlen_axis(ax, all_seqlens); gcups_axis(ax)
+        ax.legend(loc="best", frameon=False)
+        ax.set_title("NW performance")
+        save(fig, f"nw_gcups{suffix}")
+
+        fig, ax = plt.subplots(figsize=size)
+        for app in sorted(by_app):
+            color, marker = NW_STYLES[app]
+            sls   = [int(r["seq_len"]) for r in by_app[app]]
+            times = [time_per_seq_us(r) for r in by_app[app]]
+            ax.plot(sls, times, marker + "-", color=color, label=app)
+        style_seqlen_axis(ax, all_seqlens); time_axis(ax)
+        ax.legend(loc="best", frameon=False)
+        ax.set_title("NW performance")
+        save(fig, f"nw_time{suffix}")
+
+
 def main():
     plot_2d()
     plot_1d_best()
     plot_1d_all_cpg()
     plot_1d_vs_2d()
     plot_sw_effect_hibw()
+    plot_nw()
     vv_stats = plot_vvadd()
     rl_stats = plot_roofline()
     print(f"Wrote charts to {OUT}/")
