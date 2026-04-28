@@ -683,8 +683,9 @@ def plot_arch_compare():
     eff = [g / a for (_, _, _, g, a) in bars]
     labels = [f"{proc}\n({kind})\n{node}" for (proc, kind, node, _, _) in bars]
     # A100 bright NVIDIA green, V100 darker NVIDIA-family green, Intel gray,
-    # HB 2D red / 1D green per project convention.
-    colors = ["#76b900", "#3d6e00", "#7f7f7f", COLOR_2D, COLOR_1D]
+    # HB 2D red, HB 1D orange.  Override of project COLOR_1D=green here so HB
+    # bars don't read as NVIDIA family in this cross-arch chart.
+    colors = ["#76b900", "#3d6e00", "#7f7f7f", COLOR_2D, "#ff7f0e"]
 
     fig, ax = plt.subplots(figsize=SIZE_WIDE)
     xs = list(range(len(bars)))
