@@ -41,15 +41,23 @@ memory subsystem.
 serves all 8 pods, so this is the aggregate the chip *requests*; what
 the DRAM controller serves uniquely depends on caching).
 
-| Metric | Regular | High bandwidth | Speedup |
-|---|---|---|---|
-| Peak chip-wide BW (at N = 64 M) | **4.15 GB/s** | **31.7 GB/s** | **7.6×** |
+### Per-config bandwidth and speedup
 
-Slow vs fast raw kernel time at N=64M: **6.50 s / 1.55 s = 4.19×**
-slow.  Inverse of (32 × 1.55 / 6.50) = **7.6× ratio**, which is the
-high-bandwidth speedup over regular at this size.  At smaller N
-the speedup is lower (overhead-dominated; the kernel doesn't reach
-peak BW).
+| N | Regular BW (GB/s) | High bandwidth BW (GB/s) | Speedup |
+|---|---|---|---|
+| 64 K   | 0.60  | 9.52  | **15.8×** |
+| 256 K  | 1.50  | 17.09 | **11.4×** |
+| 1 M    | 2.25  | 20.28 | **9.0×** |
+| 4 M    | 3.10  | 24.28 | **7.8×** |
+| 16 M   | 3.88  | 29.69 | **7.7×** |
+| 64 M   | 4.15  | 31.72 | **7.6×** |
+
+The asymptotic speedup at large N converges to **7.6×** (matches the
+inverse of the raw slow/fast time ratio: 32 / (6.50 s / 1.55 s) = 7.6).
+At small N the ratio looks larger because the regular run is
+overhead-dominated (well below its own BW peak), so a projection that
+re-times the memory phase to 1/32 lifts it more aggressively than at
+large-N steady state.
 
 ### `vvadd_bw.png` / `vvadd_bw_wide.png`
 
