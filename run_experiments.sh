@@ -326,36 +326,24 @@ run_test() {
     make_args+=("USE_LINEAR_BARRIER=1")
   fi
 
-  # Slow-mode repeat scaling — per experiment, since "compute-bound" vs
-  # "memory-bound" determines how much real-time slow steals.
-  #
-  #   sw1d_cpg_slow / sw2d_seqlen_slow:  compute-bound, /16
-  #   roofline_slow:                      compute-bound at high AI, /16
-  #                                       (low-AI rows under-shoot, fine)
-  #   radix_sort_slow:                    SIZE < 65 K compute-bound (/16),
-  #                                       SIZE ≥ 65 K DRAM-bound (/2);
-  #                                       knob is num-arr, not repeat.
+  # Slow-mode work scaling — uniform /8 across every slow experiment.
+  #   sw1d_cpg_slow / sw2d_seqlen_slow / roofline_slow:  repeat /= 8
+  #   radix_sort_slow:                                    num-arr /= 8
   if [ "$SPEED" = "slow" ]; then
     case "$EXPERIMENT" in
       radix_sort_slow)
         # Test name format: radix_sort_<SIZE>__num-arr_<N>
-        local vec_size num_arr
-        vec_size="$(extract_param radix_sort "$test_name")"
-        num_arr="$(extract_param num-arr     "$test_name")"
+        local num_arr
+        num_arr="$(extract_param num-arr "$test_name")"
         if [ -n "$num_arr" ] && [ "$num_arr" -gt 1 ]; then
-          local slow_num_arr
-          if [ -n "$vec_size" ] && [ "$vec_size" -ge 65536 ]; then
-            slow_num_arr=$(( num_arr / 2 ))
-          else
-            slow_num_arr=$(( num_arr / 16 ))
-          fi
+          local slow_num_arr=$(( num_arr / 8 ))
           [ "$slow_num_arr" -lt 1 ] && slow_num_arr=1
           make_args+=("num-arr=${slow_num_arr}")
         fi
         ;;
       *)
         if [ -n "$repeat" ] && [ "$repeat" -gt 1 ]; then
-          local slow_repeat=$(( repeat / 16 ))
+          local slow_repeat=$(( repeat / 8 ))
           [ "$slow_repeat" -lt 1 ] && slow_repeat=1
           make_args+=("repeat=${slow_repeat}")
         fi
@@ -434,16 +422,16 @@ run_test() {
   # measured slow time by 1/32.  Equivalent: multiply throughput by 32.
   #
   # GCUPS additionally needs the slow-mode repeat divisor accounted for —
-  # we passed repeat=$repeat/16 to make, so actual cells executed were
-  # 1/16 of what the test_name encodes.  Net factor for GCUPS in slow:
-  #   gcups_proj = (cells_actual × 32) / t = (cells_csv / 16) × 32 / t
-  #              = 2 × (cells_csv / t)
+  # we passed repeat=$repeat/8 to make, so actual cells executed were
+  # 1/8 of what the test_name encodes.  Net factor for GCUPS in slow:
+  #   gcups_proj = (cells_actual × 32) / t = (cells_csv / 8) × 32 / t
+  #              = 4 × (cells_csv / t)
   # radix_sort_slow is excluded — it scales num-arr (a different work knob)
   # and doesn't compute GCUPS.
   local gcups_factor=1   # multiplied into the cells_csv/t formula
   local bw_factor=1      # multiplied into the kernel's reported BW / GOPS
   if [ "$SPEED" = "slow" ] && [ "$EXPERIMENT" != "radix_sort_slow" ]; then
-    gcups_factor=2       # = 32/16 (sim32bw / repeat-div)
+    gcups_factor=4       # = 32/8 (sim32bw / repeat-div)
     bw_factor=32         # roofline already reflects actual repeat in its
                          # internal measurement, so just project ×32
   fi

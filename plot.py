@@ -342,7 +342,7 @@ def plot_sw_effect_hibw():
     style_seqlen_axis(ax, common_2d); gcups_axis(ax)
     ax.set_ylim(*SHARED_YLIM)
     ax.legend(loc="lower right", frameon=False)
-    ax.set_title("2D — effect of high bandwidth")
+    ax.set_title("2D bandwidth performance")
     save(fig, "2d_effect_hibw")
 
     # ── sw/1d (sparse — best-per-CPG slow rows only) ───────────────────────
@@ -355,13 +355,10 @@ def plot_sw_effect_hibw():
     fig, ax = plt.subplots(figsize=SIZE_DEFAULT)
     ax.plot(sls, reg_1d, "o-", color=COLOR_REGULAR, label="regular")
     ax.plot(sls, hib_1d, "s-", color=COLOR_HIBW,    label="high bandwidth")
-    for (cpg, sl), r in zip(common_1d, reg_1d):
-        ax.annotate(f"cpg={cpg}", (sl, r), textcoords="offset points",
-                    xytext=(8, -16), fontsize=11)
     style_seqlen_axis(ax, sls); gcups_axis(ax)
     ax.set_ylim(*SHARED_YLIM)
     ax.legend(loc="lower right", frameon=False)
-    ax.set_title("1D — effect of high bandwidth (best per CPG)")
+    ax.set_title("1D bandwidth performance")
     save(fig, "1d_effect_hibw")
 
 
