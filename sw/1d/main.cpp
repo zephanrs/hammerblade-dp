@@ -130,10 +130,10 @@ int sw_multipod(int argc, char ** argv) {
   fflush(stdout);
 
 
-  // Read from device;
-  int* actual_output = (int*) malloc(total_num_seq*sizeof(int));
-
+  // Read from device — gated entirely behind ENABLE_VERIFY.
   bool fail = false;
+#if ENABLE_VERIFY
+  int* actual_output = (int*) malloc(total_num_seq*sizeof(int));
   hb_mc_device_foreach_pod_id(&device, pod) {
     printf("Reading results: pods %d\n", pod);
     BSG_CUDA_CALL(hb_mc_device_set_default_pod(&device, pod));
@@ -148,7 +148,6 @@ int sw_multipod(int argc, char ** argv) {
     dtoh_job.push_back({d_output, actual_output, total_num_seq*sizeof(int)});
     BSG_CUDA_CALL(hb_mc_device_transfer_data_to_host(&device, dtoh_job.data(), dtoh_job.size()));
 
-#if ENABLE_VERIFY
     const int pod_seq_off = POD_UNIQUE_DATA ? pod * num_seq : 0;
     const int expected = sw_reference_score(
         &query[pod_seq_off * seq_len], qry_lens[pod_seq_off],
@@ -160,8 +159,8 @@ int sw_multipod(int argc, char ** argv) {
     } else {
       printf("correct pod %d: first sequence score=%d\n", pod, expected);
     }
-#endif
   }
+#endif
 
 
   // Finish;

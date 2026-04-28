@@ -281,11 +281,11 @@ int nw_baseline_multipod(int argc, char ** argv) {
   fflush(stdout);
 
 
-  // Read from device;
+  // Read from device — gated entirely behind ENABLE_VERIFY.
+  bool fail = false;
+#if ENABLE_VERIFY
   int* actual_output = (int*) malloc(total_num_seq*sizeof(int));
   int* actual_path = (int*) malloc(num_seq*seq_len*sizeof(int));
-
-  bool fail = false;
   hb_mc_device_foreach_pod_id(&device, pod) {
     printf("Reading results: pods %d\n", pod);
     BSG_CUDA_CALL(hb_mc_device_set_default_pod(&device, pod));
@@ -304,7 +304,6 @@ int nw_baseline_multipod(int argc, char ** argv) {
     dtoh_job.push_back({d_path, actual_path, (uint32_t)(num_seq*seq_len*sizeof(int))});
     BSG_CUDA_CALL(hb_mc_device_transfer_data_to_host(&device, dtoh_job.data(), dtoh_job.size()));
 
-#if ENABLE_VERIFY
     std::vector<int> forward_scores;
     std::vector<int> suffix_scores;
     for (int i = 0; i < num_seq; i++) {
@@ -339,8 +338,8 @@ int nw_baseline_multipod(int argc, char ** argv) {
                i, path_check.score, expected);
       }
     }
-#endif
   }
+#endif
 
 
   // Finish;

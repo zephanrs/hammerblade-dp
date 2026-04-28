@@ -99,10 +99,13 @@ int nw_naive_multipod(int argc, char ** argv) {
   fflush(stdout);
 
 
-  // Read from device;
+  // Read from device — gated entirely behind ENABLE_VERIFY since the full
+  // DP matrix DMA-back is num_seq × (seq_len+1)² × 4 bytes per pod and
+  // dominates wall time when verification is off.
+  bool fail = false;
+#if ENABLE_VERIFY
   int* actual_dp_matrix = (int*) malloc(num_seq*matrix_size*sizeof(int));
 
-  bool fail = false;
   hb_mc_device_foreach_pod_id(&device, pod) {
     printf("Reading results: pods %d\n", pod);
     BSG_CUDA_CALL(hb_mc_device_set_default_pod(&device, pod));
@@ -117,7 +120,6 @@ int nw_naive_multipod(int argc, char ** argv) {
     dtoh_job.push_back({d_dp_matrix, actual_dp_matrix, num_seq*matrix_size*sizeof(int)});
     BSG_CUDA_CALL(hb_mc_device_transfer_data_to_host(&device, dtoh_job.data(), dtoh_job.size()));
 
-#if ENABLE_VERIFY
     std::vector<int> H((seq_len+1) * (seq_len+1));
     for (int i = 0; i < num_seq; i++) {
       for (int j = 0; j <= seq_len; j++) {
@@ -145,8 +147,8 @@ int nw_naive_multipod(int argc, char ** argv) {
         }
       }
     }
-#endif
   }
+#endif
 
 
   // Finish;

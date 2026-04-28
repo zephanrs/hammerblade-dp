@@ -97,10 +97,10 @@ int nw_baseline_multipod(int argc, char ** argv) {
   fflush(stdout);
 
 
-  // Read from device;
-  int* actual_output = (int*) malloc(total_num_seq*sizeof(int));
-
+  // Read from device — gated entirely behind ENABLE_VERIFY.
   bool fail = false;
+#if ENABLE_VERIFY
+  int* actual_output = (int*) malloc(total_num_seq*sizeof(int));
   hb_mc_device_foreach_pod_id(&device, pod) {
     printf("Reading results: pods %d\n", pod);
     BSG_CUDA_CALL(hb_mc_device_set_default_pod(&device, pod));
@@ -115,7 +115,6 @@ int nw_baseline_multipod(int argc, char ** argv) {
     dtoh_job.push_back({d_output, actual_output, total_num_seq*sizeof(int)});
     BSG_CUDA_CALL(hb_mc_device_transfer_data_to_host(&device, dtoh_job.data(), dtoh_job.size()));
 
-#if ENABLE_VERIFY
     int H[seq_len+1][seq_len+1];
     int expected_output[num_seq];
     for (int i = 0; i < num_seq; i++) {
@@ -144,8 +143,8 @@ int nw_baseline_multipod(int argc, char ** argv) {
         printf("Mismatch: i=%d, actual=%d, expected=%d\n", i, actual, expected);
       }
     }
-#endif
   }
+#endif
 
 
   // Finish;
