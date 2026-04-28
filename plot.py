@@ -234,11 +234,60 @@ def plot_1d_vs_2d():
     save(fig, "compare_gcups")
 
 
+def plot_vvadd():
+    """vvadd diagnostic: regular vs high-bandwidth chip-wide BW + time."""
+    fast = load_csv(DATA / "vvadd" / "fast.csv")
+    slow = load_csv(DATA / "vvadd" / "slow.csv")
+    sizes_f = [int(r["size"])           for r in fast]
+    t_f_us  = [int(r["kernel_time_us"]) for r in fast]
+    sizes_s = [int(r["size"])           for r in slow]
+    t_s_us  = [int(r["kernel_time_us"]) for r in slow]
+
+    # Chip-wide bytes for one vvadd (c = a + b): 2 reads + 1 write = 3×N×4 B
+    # per pod; ×8 pods (shared data) → 24×N bytes touched chip-wide.
+    def bw_GBs(size, t_us):
+        return [24 * s / (t * 1e3) for s, t in zip(size, t_us)]
+
+    bw_regular = bw_GBs(sizes_f, t_f_us)
+    # High-bandwidth = slow with the sim32bw projection (×32 throughput).
+    bw_hibw    = [b * 32 for b in bw_GBs(sizes_s, t_s_us)]
+
+    # Bandwidth chart
+    fig, ax = plt.subplots(figsize=SIZE_DEFAULT)
+    ax.plot(sizes_f, bw_regular, "o-", color=COLOR_REGULAR, label="regular")
+    ax.plot(sizes_s, bw_hibw,    "s-", color=COLOR_HIBW,    label="high bandwidth")
+    ax.set_xscale("log", base=2)
+    ax.set_xticks(sorted(set(sizes_f) | set(sizes_s)))
+    ax.xaxis.set_major_formatter(mticker.FuncFormatter(
+        lambda x, _: f"{int(x)//1024}K" if x < 1<<20 else f"{int(x)//(1<<20)}M"))
+    ax.set_xlabel("Vector Size")
+    ax.set_ylabel("Bandwidth (GB/s)")
+    ax.legend(loc="best", frameon=False)
+    ax.set_title("vvadd performance")
+    save(fig, "vvadd_bw")
+
+    # Raw time chart (also useful as a sanity diagnostic).
+    fig, ax = plt.subplots(figsize=SIZE_DEFAULT)
+    ax.plot(sizes_f, t_f_us, "o-", color=COLOR_REGULAR, label="regular")
+    ax.plot(sizes_s, t_s_us, "s-", color=COLOR_HIBW,    label="high bandwidth (raw slow)")
+    ax.set_xscale("log", base=2)
+    ax.set_yscale("log")
+    ax.set_xticks(sorted(set(sizes_f) | set(sizes_s)))
+    ax.xaxis.set_major_formatter(mticker.FuncFormatter(
+        lambda x, _: f"{int(x)//1024}K" if x < 1<<20 else f"{int(x)//(1<<20)}M"))
+    ax.set_xlabel("Vector Size")
+    ax.set_ylabel("Time (µs)")
+    ax.legend(loc="best", frameon=False)
+    ax.set_title("vvadd performance")
+    save(fig, "vvadd_time")
+
+
 def main():
     plot_2d()
     plot_1d_best()
     plot_1d_all_cpg()
     plot_1d_vs_2d()
+    plot_vvadd()
     print(f"Wrote charts to {OUT}/")
 
 
