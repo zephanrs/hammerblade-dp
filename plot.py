@@ -6,7 +6,7 @@ One module-level function per logical chart group; ``main()`` runs them all.
 
 Conventions (project-wide):
 - Default figure size: 10×8 inches.
-- Wider variant (for plots with more legend / many series): 24×8 inches.
+- Wider variant (for plots with more legend / many series): 21×9 inches.
 - DPI 300, PNG only.
 - Sequence-length axis: log base 2, ticks labeled with raw integers
   (32, 64, 128 — never 2^5, 2^6, ...).
@@ -30,7 +30,7 @@ OUT.mkdir(exist_ok=True)
 
 DPI = 300
 SIZE_DEFAULT = (10, 8)   # 1.25:1 aspect
-SIZE_WIDE    = (24, 8)   # 3:1 aspect, for many-series plots
+SIZE_WIDE    = (21, 9)   # ~2.33:1 aspect, for many-series plots
 
 # Regular vs high-bandwidth comparison colors (project-wide convention).
 COLOR_REGULAR = "#1f77b4"  # blue

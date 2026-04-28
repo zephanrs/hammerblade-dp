@@ -1,7 +1,7 @@
 # Smith-Waterman charts
 
 All charts at 300 dpi.  Default size 10×8 inches; 1D plots also export
-a 24×8 wide variant for the multi-CPG view.  GCUPs values are scaled
+a 21×9 wide variant for the multi-CPG view.  GCUPs values are scaled
 ×8 to reflect all 8 pods (chip-wide).  Time/sequence is in microseconds,
 log-scale.  cpg=2 omitted (most rows timed out at launch scale; only
 one passed, not enough to draw a curve).
