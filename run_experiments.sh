@@ -528,7 +528,7 @@ log "Full log       : $LOG"
 # grep -c prints the count AND exits 1 when count==0, so `|| echo 0` would
 # emit a second "0" → "0\n0", breaking arithmetic below. Use `|| true` and
 # let the prefixed ${...:-0} supply the default.
-n_fail=$(grep -c ',FAILED\|,TIMEOUT' "$CSV" 2>/dev/null || true)
+n_fail=$(grep -c ',FAILED\|,TIMEOUT\|,COMPILE_ERROR' "$CSV" 2>/dev/null || true)
 n_fail=${n_fail:-0}
 n_lines=$(wc -l < "$CSV" 2>/dev/null || echo 0)
 n_pass=$(( n_lines - 1 - n_fail ))
@@ -537,6 +537,25 @@ if [ "$n_fail" -gt 0 ]; then
   log_err "Failed/Timeout : $n_fail"
 else
   log "Failed/Timeout : 0"
+fi
+
+# ─── Re-run list ─────────────────────────────────────────────────────────────
+# When any row failed/timed out, write a plain-text list of (app, test_name,
+# status) to results/failed_<TIMESTAMP>.txt, also dump it inline to the log.
+# Easy to glance at, easy to feed to a re-run loop.
+if [ "$n_fail" -gt 0 ]; then
+  FAILED_LIST="$OUT_DIR/failed_${TIMESTAMP}.txt"
+  # Pull app, test_name, status from the failure rows (cols 1, 2, 9 in CSV).
+  awk -F, '$9=="FAILED" || $9=="TIMEOUT" || $9=="COMPILE_ERROR" {
+    printf "%-22s  %-70s  %s\n", $1, $2, $9
+  }' "$CSV" > "$FAILED_LIST"
+
+  echo ""
+  log_section "Failed/Timeout — re-run candidates"
+  log "Recorded to: $FAILED_LIST"
+  while IFS= read -r line; do
+    printf "         %s\n" "$line"
+  done < "$FAILED_LIST"
 fi
 
 # ─── Archive on user confirmation ────────────────────────────────────────────
