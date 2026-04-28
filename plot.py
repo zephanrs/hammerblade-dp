@@ -113,7 +113,7 @@ def style_seqlen_axis(ax, seq_lens):
 
 def time_axis(ax):
     ax.set_yscale("log")
-    ax.set_ylabel("Time/sequence")
+    ax.set_ylabel("Time/sequence (µs)")
 
 
 def gcups_axis(ax):
