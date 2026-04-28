@@ -26,8 +26,11 @@
 # off from 20 s, retune repeat with the same cells-target formula but
 # scaled to the measured GCUPS.
 
-TESTS += seq-len_32__num-seq_32752__repeat_2048
-TESTS += seq-len_64__num-seq_16368__repeat_1024
+# seq_len=32, 64: HW-calibrated parameters (smaller num_seq + retuned repeat
+# to land at ~20 s — the boundary-only kernel's per-cell cost differs from
+# sw/1d's at the smallest sizes).
+TESTS += seq-len_32__num-seq_16368__repeat_1000
+TESTS += seq-len_64__num-seq_16368__repeat_400
 TESTS += seq-len_128__num-seq_8176__repeat_512
 TESTS += seq-len_256__num-seq_4080__repeat_256
 TESTS += seq-len_512__num-seq_2032__repeat_128
