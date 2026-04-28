@@ -80,16 +80,17 @@ at every measured configuration.
 
 ## Area-normalized comparison vs CPU / GPU
 
-GCUPs / mm² across CPU, GPU, and HammerBlade.  HB peak GCUPs is taken
+GCUPs / mm² across GPU, CPU, and HammerBlade.  HB peak GCUPs is taken
 chip-wide (×8) from the best run with cpg > 1 (cpg=1 is the no-grouping
 case and unfair to the comparison).  HB die area: 38.875 mm².
 
-| Device   | Process    | Peak GCUPs | Area (mm²) | GCUPs / mm² |
-|----------|------------|-----------:|-----------:|------------:|
-| CPU (2× Xeon Skylake-SP XCC) | 14 nm    | 734   | 1396  | 0.53 |
-| GPU (NVIDIA A100)            | 7 nm     | 1940  | 826   | 2.35 |
-| HB (1D, seq_len=2048, cpg=8) | 14/16 nm | 31.45 | 38.88 | 0.81 |
-| HB (2D, seq_len=1024)        | 14/16 nm | 34.41 | 38.88 | 0.89 |
+| Device                       | Process    | Peak GCUPs | Area (mm²) | GCUPs / mm² |
+|------------------------------|------------|-----------:|-----------:|------------:|
+| NVIDIA A100 (GPU)            | 7 nm       | 1940       | 826        | 2.35        |
+| NVIDIA V100 (GPU)            | 12 nm FFN  | 162        | 815        | 0.20        |
+| 2× Xeon Skylake-SP (CPU)     | 14 nm      | 734        | 1396       | 0.53        |
+| HB (2D, seq_len=1024)        | 14/16 nm   | 34.41      | 38.88      | 0.89        |
+| HB (1D, seq_len=2048, cpg=8) | 14/16 nm   | 31.45      | 38.88      | 0.81        |
 
 ### `arch_compare_gcups_per_mm2_wide.png`
 ![GCUPs/mm² — CPU vs GPU vs HB](arch_compare_gcups_per_mm2_wide.png)
