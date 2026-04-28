@@ -85,7 +85,7 @@ def load_csv(path: Path):
 
 def is_ok(row):
     t = row.get("kernel_time_sec", "")
-    return t and t not in ("TIMEOUT", "FAILED", "COMPILE_ERROR")
+    return t and t not in ("TIMEOUT", "FAILED", "COMPILE_ERROR", "N/A")
 
 
 def time_per_seq_us(row):
@@ -562,6 +562,82 @@ def plot_nw():
         save(fig, f"nw_time{suffix}")
 
 
+def plot_radix_sort():
+    """Radix sort: raw kernel time (s) and per-element cost (ns) vs SIZE.
+
+    Two curves on each chart: regular (blue) and high-bandwidth (orange).
+    Slow CSV's NUM_ARR was scaled /8 by run_experiments.sh, so:
+        actual_num_arr_slow = max(1, test_name_num_arr // 8)
+        ns_per_elem_hibw    = (t_slow / 32) × 1e9 / (actual_num_arr × SIZE)
+        raw_time_hibw       = (t_slow / 32) × (test_num_arr / actual_num_arr)
+            ↑ extrapolated to "regular's nominal work amount" (256 M ints)
+              so the two raw-time curves are directly comparable.
+    """
+    def parse_row(r, slow=False):
+        # test_name = "radix_sort_<SIZE>__num-arr_<N>"
+        try:
+            head, tail = r["test_name"].split("__num-arr_")
+            sz   = int(head.split("_")[-1])
+            tna  = int(tail)
+        except (ValueError, IndexError):
+            return None
+        t = float(r["kernel_time_sec"])
+        if slow:
+            actual_na = max(1, tna // 8)
+            t_eff = (t / 32) * (tna / actual_na)   # full-work-extrapolated
+            ns    = (t / 32) * 1e9 / (actual_na * sz)
+        else:
+            t_eff = t
+            ns    = t * 1e9 / (tna * sz)
+        return (sz, t_eff, ns)
+
+    fast_rows = []
+    for c in (DATA / "radix_sort_fast").glob("results_*.csv"):
+        fast_rows += [parse_row(r, slow=False) for r in load_csv(c) if is_ok(r)]
+    slow_rows = []
+    for c in (DATA / "radix_sort_slow").glob("results_*.csv"):
+        slow_rows += [parse_row(r, slow=True) for r in load_csv(c) if is_ok(r)]
+    fast_rows = sorted(p for p in fast_rows if p is not None)
+    slow_rows = sorted(p for p in slow_rows if p is not None)
+
+    sizes_f = [p[0] for p in fast_rows]
+    t_f     = [p[1] for p in fast_rows]
+    ns_f    = [p[2] for p in fast_rows]
+    sizes_s = [p[0] for p in slow_rows]
+    t_s     = [p[1] for p in slow_rows]
+    ns_s    = [p[2] for p in slow_rows]
+
+    all_sizes = sorted(set(sizes_f) | set(sizes_s))
+
+    def make_size_axis(ax):
+        ax.set_xscale("log", base=2)
+        ax.set_xticks(all_sizes)
+        ax.xaxis.set_major_formatter(mticker.FuncFormatter(
+            lambda x, _: f"{int(x)//1024}K" if x < 1 << 20 else f"{int(x)//(1<<20)}M"))
+        ax.set_xlabel("Array Size")
+
+    for size, suffix in ((SIZE_DEFAULT, ""), (SIZE_WIDE, "_wide")):
+        fig, ax = plt.subplots(figsize=size)
+        ax.plot(sizes_f, t_f, "o-", color=COLOR_REGULAR, label="regular")
+        ax.plot(sizes_s, t_s, "s-", color=COLOR_HIBW,    label="high bandwidth")
+        make_size_axis(ax)
+        ax.set_yscale("log")
+        ax.set_ylabel("Kernel time (s)")
+        ax.legend(loc="best", frameon=False)
+        ax.set_title("Radix sort performance")
+        save(fig, f"radix_time{suffix}")
+
+        fig, ax = plt.subplots(figsize=size)
+        ax.plot(sizes_f, ns_f, "o-", color=COLOR_REGULAR, label="regular")
+        ax.plot(sizes_s, ns_s, "s-", color=COLOR_HIBW,    label="high bandwidth")
+        make_size_axis(ax)
+        ax.set_yscale("log")
+        ax.set_ylabel("ns/element")
+        ax.legend(loc="best", frameon=False)
+        ax.set_title("Radix sort performance")
+        save(fig, f"radix_ns_per_elem{suffix}")
+
+
 def main():
     plot_2d()
     plot_1d_best()
@@ -571,6 +647,7 @@ def main():
     plot_nw()
     vv_stats = plot_vvadd()
     rl_stats = plot_roofline()
+    plot_radix_sort()
     print(f"Wrote charts to {OUT}/")
     print()
     print("=== vvadd stats ===")
