@@ -314,43 +314,45 @@ def plot_1d_vs_2d():
     save(fig, "compare_gcups")
 
 
-# ─── SW: 1D + 2D, regular vs high bandwidth on one chart ─────────────────────
-def plot_sw_compare_hibw():
-    """Combined sw/1d + sw/2d × regular + high-bandwidth.  Encodes both axes:
-    color = regular vs high bandwidth (project rule); marker + line style =
-    1D (dashed + circle) vs 2D (solid + square).  Story: regular and
-    high-bandwidth lines are nearly on top of each other for both kernels →
-    both are compute-bound.  Only sw/2d at small seq_len (32–128) shows the
-    memory-bound regime where high bandwidth lifts performance.
+# ─── SW: effect of high bandwidth ────────────────────────────────────────────
+def plot_sw_effect_hibw():
+    """Separate regular vs high-bandwidth plots for sw/1d and sw/2d.
+
+    sw/2d covers seq_len 32–1024 (6 points, both fast and slow have full data).
+    sw/1d covers only the 4 (cpg, seq_len) pairs that have both fast and
+    slow data — the slow filter sampled the largest seq_len per CPG only.
     """
+    # ── sw/2d ──────────────────────────────────────────────────────────────
     fast_2d = {int(r["seq_len"]): r for r in load_sw2d_fast()}
     slow_2d = {int(r["seq_len"]): r for r in load_sw2d_slow()}
     common_2d = sorted(set(fast_2d) & set(slow_2d))
-    sl_2d  = common_2d
-    reg_2d = [gcups_chipwide(fast_2d[sl]) for sl in sl_2d]
-    hib_2d = [gcups_chipwide(slow_2d[sl]) for sl in sl_2d]
+    reg = [gcups_chipwide(fast_2d[sl]) for sl in common_2d]
+    hib = [gcups_chipwide(slow_2d[sl]) for sl in common_2d]
+    fig, ax = plt.subplots(figsize=SIZE_DEFAULT)
+    ax.plot(common_2d, reg, "o-", color=COLOR_REGULAR, label="regular")
+    ax.plot(common_2d, hib, "s-", color=COLOR_HIBW,    label="high bandwidth")
+    style_seqlen_axis(ax, common_2d); gcups_axis(ax)
+    ax.legend(loc="best", frameon=False)
+    ax.set_title("2D — effect of high bandwidth")
+    save(fig, "2d_effect_hibw")
 
+    # ── sw/1d (sparse — best-per-CPG slow rows only) ───────────────────────
     fast_1d_idx = {(int(r["cpg"]), int(r["seq_len"])): r for r in load_sw1d_fast()}
     slow_1d_idx = {(int(r["cpg"]), int(r["seq_len"])): r for r in load_sw1d_slow()}
     common_1d = sorted(set(fast_1d_idx) & set(slow_1d_idx), key=lambda x: x[1])
-    sl_1d  = [sl for (_, sl) in common_1d]
+    sls    = [sl for (_, sl) in common_1d]
     reg_1d = [gcups_chipwide(fast_1d_idx[k]) for k in common_1d]
     hib_1d = [gcups_chipwide(slow_1d_idx[k]) for k in common_1d]
-
-    all_seqlens = sorted(set(sl_1d) | set(sl_2d))
-
-    for size, suffix in ((SIZE_DEFAULT, ""), (SIZE_WIDE, "_wide")):
-        fig, ax = plt.subplots(figsize=size)
-        # 2D: solid line + square marker
-        ax.plot(sl_2d, reg_2d, "s-", color=COLOR_REGULAR, label="2D regular")
-        ax.plot(sl_2d, hib_2d, "s-", color=COLOR_HIBW,    label="2D high bandwidth")
-        # 1D: dashed line + circle marker
-        ax.plot(sl_1d, reg_1d, "o--", color=COLOR_REGULAR, label="1D regular")
-        ax.plot(sl_1d, hib_1d, "o--", color=COLOR_HIBW,    label="1D high bandwidth")
-        style_seqlen_axis(ax, all_seqlens); gcups_axis(ax)
-        ax.legend(loc="lower right", frameon=False, ncol=2)
-        ax.set_title("Effect of high bandwidth on Smith-Waterman")
-        save(fig, f"sw_compare_hibw{suffix}")
+    fig, ax = plt.subplots(figsize=SIZE_DEFAULT)
+    ax.plot(sls, reg_1d, "o-", color=COLOR_REGULAR, label="regular")
+    ax.plot(sls, hib_1d, "s-", color=COLOR_HIBW,    label="high bandwidth")
+    for (cpg, sl), r in zip(common_1d, reg_1d):
+        ax.annotate(f"cpg={cpg}", (sl, r), textcoords="offset points",
+                    xytext=(8, -16), fontsize=11)
+    style_seqlen_axis(ax, sls); gcups_axis(ax)
+    ax.legend(loc="best", frameon=False)
+    ax.set_title("1D — effect of high bandwidth (best per CPG)")
+    save(fig, "1d_effect_hibw")
 
 
 # ─── vvadd ───────────────────────────────────────────────────────────────────
@@ -505,7 +507,7 @@ def main():
     plot_1d_best()
     plot_1d_all_cpg()
     plot_1d_vs_2d()
-    plot_sw_compare_hibw()
+    plot_sw_effect_hibw()
     vv_stats = plot_vvadd()
     rl_stats = plot_roofline()
     print(f"Wrote charts to {OUT}/")
