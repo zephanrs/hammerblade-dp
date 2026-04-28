@@ -46,10 +46,10 @@ mkdir -p "$OUT_DIR"
 # Your assigned hardware unit ID.
 UNIT_ID="${UNIT_ID:-2}"
 
-# Per-test timeout (seconds). If exceeded, the run is killed and the device reset.
-# 10 min accommodates slow-mode headroom and overnight nohup runs where nobody
-# is watching for an early timeout.
-TIMEOUT="${TIMEOUT:-600}"
+# Per-test timeout (seconds).  All experiments target ~20 s wall (slow runs
+# scale repeat to land in the same range), so 60 s gives 3× headroom.
+# Timed-out rows are retried once before being recorded as TIMEOUT.
+TIMEOUT="${TIMEOUT:-60}"
 
 # SPEED is set by the experiment registry above.  Slow experiments
 # automatically invoke cool_down (see "Pre-flight cool_down" below).
@@ -333,18 +333,34 @@ run_test() {
   local exec_log="$test_dir/exec.log"
   local make_cmd=(make -C "$test_dir" exec.log "${make_args[@]}")
 
+  # Run the make command, retrying once if it times out (real-ASIC non-
+  # determinism: vcache/wormhole/router state from prior tests can push a
+  # borderline row over the timeout occasionally).  Pre-retry: full device
+  # reset, then re-run.  A second timeout is recorded as TIMEOUT in the CSV.
   local run_failed=0
-  if [ "${VERBOSE:-0}" = "1" ]; then
-    timeout "$TIMEOUT" "${make_cmd[@]}" || run_failed=$?
-  else
-    timeout "$TIMEOUT" "${make_cmd[@]}" > "$run_log" 2>&1 || run_failed=$?
-  fi
+  local attempt
+  for attempt in 1 2; do
+    run_failed=0
+    if [ "${VERBOSE:-0}" = "1" ]; then
+      timeout "$TIMEOUT" "${make_cmd[@]}" || run_failed=$?
+    else
+      timeout "$TIMEOUT" "${make_cmd[@]}" > "$run_log" 2>&1 || run_failed=$?
+    fi
+    # Anything other than timeout → don't retry, drop into the dispatcher.
+    [ "$run_failed" -ne 124 ] && break
+    # First timeout → reset and try again.
+    if [ "$attempt" -eq 1 ]; then
+      printf "[%s] ${YELLOW}TIMEOUT${RESET} %s / %s (after ${TIMEOUT}s, attempt 1) — resetting and retrying once\n" \
+        "$(ts)" "$app" "$test_name"
+      reset_device "$app / $test_name timed out (attempt 1)"
+    fi
+  done
 
   if [ "$run_failed" -ne 0 ]; then
     if [ "$run_failed" -eq 124 ]; then
-      printf "[%s] ${YELLOW}TIMEOUT${RESET} %s / %s (after ${TIMEOUT}s) — resetting and continuing\n" "$(ts)" "$app" "$test_name"
+      printf "[%s] ${YELLOW}TIMEOUT${RESET} %s / %s (after ${TIMEOUT}s, retry also timed out) — recording and continuing\n" "$(ts)" "$app" "$test_name"
       echo "$app,$test_name,$seq_len,$num_seq,$repeat,$cpg,$pod_unique,$speed,TIMEOUT,,,,,," >> "$CSV"
-      reset_device "$app / $test_name timed out"
+      reset_device "$app / $test_name timed out (both attempts)"
       return  # continue to next test
     elif [ ! -f "$exec_log" ]; then
       printf "[%s] ${RED}COMPILE${RESET} %s / %s (exit %d — check %s)\n" "$(ts)" "$app" "$test_name" "$run_failed" "$run_log"
