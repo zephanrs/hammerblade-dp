@@ -655,6 +655,60 @@ def plot_radix_sort():
         save(fig, f"radix_elem_per_ns_linear{suffix}")
 
 
+def plot_arch_compare():
+    """Bar chart: GCUPs/mm² across CPU, GPU, HB (1D), HB (2D).
+
+    HB peak GCUPs is taken chip-wide (×8) from the best run with cpg > 1
+    (cpg=1 is the no-grouping case and unfair to the comparison).
+    """
+    rows_1d = load_sw1d_fast()
+    best_1d = max((r for r in rows_1d if int(r["cpg"]) > 1),
+                  key=lambda r: float(r["gcups"]))
+    hb_1d_gcups = gcups_chipwide(best_1d)
+
+    rows_2d = load_sw2d_fast()
+    best_2d = max(rows_2d, key=lambda r: float(r["gcups"]))
+    hb_2d_gcups = gcups_chipwide(best_2d)
+
+    HB_AREA_MM2 = 38.875
+    HB_NODE     = "14/16 nm"
+
+    bars = [
+        ("CPU",     "14 nm", 734,         1396.0),  # 2× Xeon Skylake-SP XCC
+        ("GPU",     "7 nm",  1940,         826.0),  # NVIDIA A100
+        ("HB (1D)", HB_NODE, hb_1d_gcups, HB_AREA_MM2),
+        ("HB (2D)", HB_NODE, hb_2d_gcups, HB_AREA_MM2),
+    ]
+    eff = [g / a for (_, _, g, a) in bars]
+    labels = [f"{name}\n{node}" for (name, node, _, _) in bars]
+    colors = ["#7f7f7f", "#76b900", COLOR_1D, COLOR_2D]  # CPU gray, NVIDIA green, HB green/red
+
+    fig, ax = plt.subplots(figsize=SIZE_DEFAULT)
+    xs = list(range(len(bars)))
+    rects = ax.bar(xs, eff, color=colors, edgecolor="black", linewidth=1)
+    for rect, v in zip(rects, eff):
+        ax.text(rect.get_x() + rect.get_width()/2, rect.get_height(),
+                f"{v:.2f}", ha="center", va="bottom", fontsize=15, fontweight="bold")
+    ax.set_xticks(xs)
+    ax.set_xticklabels(labels)
+    ax.set_ylabel("GCUPs / mm²")
+    ax.set_title("Area-normalized SW performance")
+    ax.set_ylim(0, max(eff) * 1.15)
+    # Visual divider between commodity (CPU/GPU) and HB.
+    ax.axvline(1.5, color="black", linestyle=":", linewidth=1.2, alpha=0.6)
+    save(fig, "arch_compare_gcups_per_mm2")
+
+    return {
+        "hb_1d_gcups_chipwide": hb_1d_gcups,
+        "hb_2d_gcups_chipwide": hb_2d_gcups,
+        "hb_1d_eff":            hb_1d_gcups / HB_AREA_MM2,
+        "hb_2d_eff":            hb_2d_gcups / HB_AREA_MM2,
+        "best_1d_seq_len":      int(best_1d["seq_len"]),
+        "best_1d_cpg":          int(best_1d["cpg"]),
+        "best_2d_seq_len":      int(best_2d["seq_len"]),
+    }
+
+
 def main():
     plot_2d()
     plot_1d_best()
@@ -665,6 +719,7 @@ def main():
     vv_stats = plot_vvadd()
     rl_stats = plot_roofline()
     plot_radix_sort()
+    arch_stats = plot_arch_compare()
     print(f"Wrote charts to {OUT}/")
     print()
     print("=== vvadd stats ===")
@@ -673,6 +728,10 @@ def main():
     print()
     print("=== roofline stats ===")
     for k, v in rl_stats.items():
+        print(f"  {k:30s} {v}")
+    print()
+    print("=== arch-compare stats ===")
+    for k, v in arch_stats.items():
         print(f"  {k:30s} {v}")
 
 

@@ -77,3 +77,19 @@ and high-bandwidth land on top of each other → sw/1d is compute-bound
 at every measured configuration.
 
 ![1D effect of high bandwidth](1d_effect_hibw.png)
+
+## Area-normalized comparison vs CPU / GPU
+
+GCUPs / mm² across CPU, GPU, and HammerBlade.  HB peak GCUPs is taken
+chip-wide (×8) from the best run with cpg > 1 (cpg=1 is the no-grouping
+case and unfair to the comparison).  HB die area: 38.875 mm².
+
+| Device   | Process    | Peak GCUPs | Area (mm²) | GCUPs / mm² |
+|----------|------------|-----------:|-----------:|------------:|
+| CPU (2× Xeon Skylake-SP XCC) | 14 nm    | 734   | 1396  | 0.53 |
+| GPU (NVIDIA A100)            | 7 nm     | 1940  | 826   | 2.35 |
+| HB (1D, seq_len=2048, cpg=8) | 14/16 nm | 31.45 | 38.88 | 0.81 |
+| HB (2D, seq_len=1024)        | 14/16 nm | 34.41 | 38.88 | 0.89 |
+
+### `arch_compare_gcups_per_mm2.png`
+![GCUPs/mm² — CPU vs GPU vs HB](arch_compare_gcups_per_mm2.png)
