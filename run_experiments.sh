@@ -47,9 +47,9 @@ mkdir -p "$OUT_DIR"
 UNIT_ID="${UNIT_ID:-2}"
 
 # Per-test timeout (seconds).  All experiments target ~20 s wall (slow runs
-# scale repeat to land in the same range), so 60 s gives 3× headroom.
-# Timed-out rows are retried once before being recorded as TIMEOUT.
-TIMEOUT="${TIMEOUT:-60}"
+# scale repeat to land in the same range), so 30 s gives ~50 % headroom —
+# enough for normal runs, fast enough that genuine hangs fail quickly.
+TIMEOUT="${TIMEOUT:-30}"
 
 # SPEED is set by the experiment registry above.  Slow experiments
 # automatically invoke cool_down (see "Pre-flight cool_down" below).
@@ -328,40 +328,26 @@ run_test() {
     esac
   fi
 
-  # ── Execute (with retry-once on timeout) ─────────────────────────────────
-  # `make clean` runs at the start of every attempt — without it, the second
-  # attempt sees the stale exec.log from the timed-out run and short-
-  # circuits, leaving us with empty timing lines.
+  # ── Clean before run (required by BSG cluster guide) ─────────────────────
+  make -C "$test_dir" clean > /dev/null 2>&1 || true
+
+  # ── Execute ────────────────────────────────────────────────────────────────
   local run_log="$test_dir/run.log"
   local exec_log="$test_dir/exec.log"
   local make_cmd=(make -C "$test_dir" exec.log "${make_args[@]}")
 
   local run_failed=0
-  local attempt
-  for attempt in 1 2; do
-    run_failed=0
-    make -C "$test_dir" clean > /dev/null 2>&1 || true
-    if [ "${VERBOSE:-0}" = "1" ]; then
-      timeout "$TIMEOUT" "${make_cmd[@]}" || run_failed=$?
-    else
-      timeout "$TIMEOUT" "${make_cmd[@]}" > "$run_log" 2>&1 || run_failed=$?
-    fi
-    # Anything other than timeout → don't retry, drop into the dispatcher.
-    [ "$run_failed" -ne 124 ] && break
-    # First timeout → reset and try again (real-ASIC non-determinism in
-    # vcache/wormhole/NoC state can push a borderline row over once).
-    if [ "$attempt" -eq 1 ]; then
-      printf "[%s] ${YELLOW}TIMEOUT${RESET} %s / %s (after ${TIMEOUT}s, attempt 1) — resetting and retrying once\n" \
-        "$(ts)" "$app" "$test_name"
-      reset_device "$app / $test_name timed out (attempt 1)"
-    fi
-  done
+  if [ "${VERBOSE:-0}" = "1" ]; then
+    timeout "$TIMEOUT" "${make_cmd[@]}" || run_failed=$?
+  else
+    timeout "$TIMEOUT" "${make_cmd[@]}" > "$run_log" 2>&1 || run_failed=$?
+  fi
 
   if [ "$run_failed" -ne 0 ]; then
     if [ "$run_failed" -eq 124 ]; then
-      printf "[%s] ${YELLOW}TIMEOUT${RESET} %s / %s (after ${TIMEOUT}s, retry also timed out) — recording and continuing\n" "$(ts)" "$app" "$test_name"
+      printf "[%s] ${YELLOW}TIMEOUT${RESET} %s / %s (after ${TIMEOUT}s) — resetting and continuing\n" "$(ts)" "$app" "$test_name"
       echo "$app,$test_name,$seq_len,$num_seq,$repeat,$cpg,$pod_unique,$speed,TIMEOUT,,,,,," >> "$CSV"
-      reset_device "$app / $test_name timed out (both attempts)"
+      reset_device "$app / $test_name timed out"
       return  # continue to next test
     elif [ ! -f "$exec_log" ]; then
       printf "[%s] ${RED}COMPILE${RESET} %s / %s (exit %d — check %s)\n" "$(ts)" "$app" "$test_name" "$run_failed" "$run_log"
