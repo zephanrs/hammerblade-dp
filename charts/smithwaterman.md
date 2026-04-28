@@ -91,5 +91,5 @@ case and unfair to the comparison).  HB die area: 38.875 mm².
 | HB (1D, seq_len=2048, cpg=8) | 14/16 nm | 31.45 | 38.88 | 0.81 |
 | HB (2D, seq_len=1024)        | 14/16 nm | 34.41 | 38.88 | 0.89 |
 
-### `arch_compare_gcups_per_mm2.png`
-![GCUPs/mm² — CPU vs GPU vs HB](arch_compare_gcups_per_mm2.png)
+### `arch_compare_gcups_per_mm2_wide.png`
+![GCUPs/mm² — CPU vs GPU vs HB](arch_compare_gcups_per_mm2_wide.png)

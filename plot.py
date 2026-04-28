@@ -674,16 +674,16 @@ def plot_arch_compare():
     HB_NODE     = "14/16 nm"
 
     bars = [
-        ("CPU",     "14 nm", 734,         1396.0),  # 2× Xeon Skylake-SP XCC
-        ("GPU",     "7 nm",  1940,         826.0),  # NVIDIA A100
-        ("HB (1D)", HB_NODE, hb_1d_gcups, HB_AREA_MM2),
-        ("HB (2D)", HB_NODE, hb_2d_gcups, HB_AREA_MM2),
+        ("Intel Xeon Skylake-SP", "CPU", "14 nm",    734,         1396.0),
+        ("NVIDIA A100",           "GPU", "7 nm",     1940,         826.0),
+        ("HammerBlade",           "1D",  HB_NODE,    hb_1d_gcups, HB_AREA_MM2),
+        ("HammerBlade",           "2D",  HB_NODE,    hb_2d_gcups, HB_AREA_MM2),
     ]
-    eff = [g / a for (_, _, g, a) in bars]
-    labels = [f"{name}\n{node}" for (name, node, _, _) in bars]
+    eff = [g / a for (_, _, _, g, a) in bars]
+    labels = [f"{proc}\n({kind})\n{node}" for (proc, kind, node, _, _) in bars]
     colors = ["#7f7f7f", "#76b900", COLOR_1D, COLOR_2D]  # CPU gray, NVIDIA green, HB green/red
 
-    fig, ax = plt.subplots(figsize=SIZE_DEFAULT)
+    fig, ax = plt.subplots(figsize=SIZE_WIDE)
     xs = list(range(len(bars)))
     rects = ax.bar(xs, eff, color=colors, edgecolor="black", linewidth=1)
     for rect, v in zip(rects, eff):
@@ -696,7 +696,7 @@ def plot_arch_compare():
     ax.set_ylim(0, max(eff) * 1.15)
     # Visual divider between commodity (CPU/GPU) and HB.
     ax.axvline(1.5, color="black", linestyle=":", linewidth=1.2, alpha=0.6)
-    save(fig, "arch_compare_gcups_per_mm2")
+    save(fig, "arch_compare_gcups_per_mm2_wide")
 
     return {
         "hb_1d_gcups_chipwide": hb_1d_gcups,
