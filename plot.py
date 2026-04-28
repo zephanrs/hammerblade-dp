@@ -318,10 +318,29 @@ def plot_1d_vs_2d():
 def plot_sw_effect_hibw():
     """Separate regular vs high-bandwidth plots for sw/1d and sw/2d.
 
+    Shared axes (so the two plots are directly comparable side-by-side
+    in a presentation):
+      x: seq_len 32–4096 (covers both 2D's 32–1024 range and 1D's 256–4096)
+      y: 0–40 GCUPs
+
     sw/2d covers seq_len 32–1024 (6 points, both fast and slow have full data).
     sw/1d covers only the 4 (cpg, seq_len) pairs that have both fast and
     slow data — the slow filter sampled the largest seq_len per CPG only.
     """
+    SHARED_TICKS = [32, 64, 128, 256, 512, 1024, 2048, 4096]
+    SHARED_XLIM  = (28, 4500)
+    SHARED_YLIM  = (0, 40)
+
+    def style_shared_axes(ax):
+        ax.set_xscale("log", base=2)
+        ax.set_xticks(SHARED_TICKS)
+        ax.xaxis.set_major_formatter(mticker.ScalarFormatter())
+        ax.xaxis.set_minor_formatter(mticker.NullFormatter())
+        ax.set_xlim(*SHARED_XLIM)
+        ax.set_ylim(*SHARED_YLIM)
+        ax.set_xlabel("Sequence Length")
+        ax.set_ylabel("GCUPs")
+
     # ── sw/2d ──────────────────────────────────────────────────────────────
     fast_2d = {int(r["seq_len"]): r for r in load_sw2d_fast()}
     slow_2d = {int(r["seq_len"]): r for r in load_sw2d_slow()}
@@ -331,8 +350,8 @@ def plot_sw_effect_hibw():
     fig, ax = plt.subplots(figsize=SIZE_DEFAULT)
     ax.plot(common_2d, reg, "o-", color=COLOR_REGULAR, label="regular")
     ax.plot(common_2d, hib, "s-", color=COLOR_HIBW,    label="high bandwidth")
-    style_seqlen_axis(ax, common_2d); gcups_axis(ax)
-    ax.legend(loc="best", frameon=False)
+    style_shared_axes(ax)
+    ax.legend(loc="lower right", frameon=False)
     ax.set_title("2D — effect of high bandwidth")
     save(fig, "2d_effect_hibw")
 
@@ -349,8 +368,8 @@ def plot_sw_effect_hibw():
     for (cpg, sl), r in zip(common_1d, reg_1d):
         ax.annotate(f"cpg={cpg}", (sl, r), textcoords="offset points",
                     xytext=(8, -16), fontsize=11)
-    style_seqlen_axis(ax, sls); gcups_axis(ax)
-    ax.legend(loc="best", frameon=False)
+    style_shared_axes(ax)
+    ax.legend(loc="lower right", frameon=False)
     ax.set_title("1D — effect of high bandwidth (best per CPG)")
     save(fig, "1d_effect_hibw")
 
