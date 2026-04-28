@@ -5,7 +5,8 @@ Reads CSVs from ``data/<experiment>/`` and writes PNGs under ``charts/``.
 One module-level function per logical chart group; ``main()`` runs them all.
 
 Conventions (project-wide):
-- Aspect ratio 3.5×2 inches default; some charts also export a 6×2 wide variant.
+- Aspect ratio 3.5:2 (= 1.75) → figures sized 14×8 inches by default.
+- Wider variant (for plots with more legend / many series): 20×8 inches.
 - DPI 300, PNG only.
 - Sequence-length axis: log base 2, ticks labeled with raw integers
   (32, 64, 128 — never 2^5, 2^6, ...).
@@ -28,8 +29,8 @@ OUT   = REPO / "charts"
 OUT.mkdir(exist_ok=True)
 
 DPI = 300
-SIZE_DEFAULT = (3.5, 2)
-SIZE_WIDE    = (6,   2)
+SIZE_DEFAULT = (14, 8)   # 3.5:2 aspect
+SIZE_WIDE    = (20, 8)   # 2.5:1 aspect, for many-series plots
 
 # Regular vs high-bandwidth comparison colors (project-wide convention).
 COLOR_REGULAR = "#1f77b4"  # blue
@@ -40,9 +41,10 @@ COLOR_1D = "#2ca02c"  # green
 COLOR_2D = "#d62728"  # red
 
 # Per-CPG colors for the all-CPG sweep plots.  Cool → warm as cpg grows.
+# cpg=2 dropped — only one row passed (most timed out at scale), and it
+# adds noise without insight relative to cpg=1 / cpg=4.
 CPG_COLORS = {
     1:   "#1f77b4",
-    2:   "#17becf",
     4:   "#2ca02c",
     8:   "#bcbd22",
     16:  "#ff7f0e",
@@ -50,19 +52,20 @@ CPG_COLORS = {
     64:  "#9467bd",
     128: "#8c564b",
 }
+EXCLUDED_CPGS = {2}
 
 plt.rcParams.update({
-    "font.size": 8,
-    "axes.titlesize": 9,
-    "axes.labelsize": 8,
-    "xtick.labelsize": 7,
-    "ytick.labelsize": 7,
-    "legend.fontsize": 6,
-    "lines.linewidth": 1.2,
-    "lines.markersize": 3,
+    "font.size": 16,
+    "axes.titlesize": 20,
+    "axes.labelsize": 18,
+    "xtick.labelsize": 14,
+    "ytick.labelsize": 14,
+    "legend.fontsize": 13,
+    "lines.linewidth": 2.5,
+    "lines.markersize": 8,
     "axes.grid": True,
     "grid.alpha": 0.3,
-    "grid.linewidth": 0.4,
+    "grid.linewidth": 0.8,
 })
 
 
@@ -147,7 +150,8 @@ def plot_2d():
 
 
 def plot_1d_best():
-    rows = [r for r in load_csv(DATA / "sw1d_cpg_fast" / "combined.csv") if is_ok(r)]
+    rows = [r for r in load_csv(DATA / "sw1d_cpg_fast" / "combined.csv")
+            if is_ok(r) and int(r["cpg"]) not in EXCLUDED_CPGS]
     best = best_per_seqlen(rows)
     seq_lens = [int(r["seq_len"]) for r in best]
     times    = [time_per_seq_us(r) for r in best]
@@ -168,7 +172,8 @@ def plot_1d_best():
 
 
 def plot_1d_all_cpg():
-    rows = [r for r in load_csv(DATA / "sw1d_cpg_fast" / "combined.csv") if is_ok(r)]
+    rows = [r for r in load_csv(DATA / "sw1d_cpg_fast" / "combined.csv")
+            if is_ok(r) and int(r["cpg"]) not in EXCLUDED_CPGS]
     by_cpg = {}
     for r in rows:
         by_cpg.setdefault(int(r["cpg"]), []).append(r)
@@ -201,7 +206,8 @@ def plot_1d_all_cpg():
 def plot_1d_vs_2d():
     rows_2d = [r for r in load_csv(DATA / "sw2d_seqlen_fast" / "results_20260427_181442.csv") if is_ok(r)]
     rows_2d.sort(key=lambda r: int(r["seq_len"]))
-    rows_1d = [r for r in load_csv(DATA / "sw1d_cpg_fast" / "combined.csv") if is_ok(r)]
+    rows_1d = [r for r in load_csv(DATA / "sw1d_cpg_fast" / "combined.csv")
+               if is_ok(r) and int(r["cpg"]) not in EXCLUDED_CPGS]
     best_1d = {int(r["seq_len"]): r for r in best_per_seqlen(rows_1d)}
     by_2d   = {int(r["seq_len"]): r for r in rows_2d}
     common  = sorted(set(best_1d) & set(by_2d))

@@ -1,8 +1,10 @@
 # Smith-Waterman charts
 
-All charts at 300 dpi, 3.5×2 inches default (some 1D plots also exported
-at 6×2 wide).  GCUPs values are scaled ×8 to reflect all 8 pods (chip-wide).
-Time/sequence is in microseconds, log-scale.
+All charts at 300 dpi.  Default size 14×8 inches (3.5:2 aspect); 1D
+plots also export a 20×8 wide variant for the multi-CPG view.  GCUPs
+values are scaled ×8 to reflect all 8 pods (chip-wide).  Time/sequence
+is in microseconds, log-scale.  cpg=2 omitted (most rows timed out at
+launch scale; only one passed, not enough to draw a curve).
 
 ## 2D systolic array
 

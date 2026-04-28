@@ -110,14 +110,15 @@ declare -A EXPERIMENT_SPEED=(
 # Used for slow experiments that subset the fast tests.mk (e.g. sw1d_cpg_slow
 # keeps only the largest seq_len per CPG — 8 rows out of 50).
 declare -A EXPERIMENT_ROW_FILTER=(
+  # cpg=64 seq_len=16384 dropped — TIMEOUT in slow even at /16 (cache thrashing).
+  # cpg=128 seq_len=32768 dropped — slow row finished at 6.5 s, gcups well below
+  # its fast-clock counterpart; data doesn't make sense and we're out of time.
   [sw1d_cpg_slow]="seq-len_256__num-seq_4080__repeat_256__cpg_1
 seq-len_512__num-seq_2032__repeat_128__cpg_2
 seq-len_1024__num-seq_1008__repeat_64__cpg_4
 seq-len_2048__num-seq_496__repeat_32
 seq-len_4096__num-seq_240__repeat_16__cpg_16
-seq-len_8192__num-seq_112__repeat_8__cpg_32
-seq-len_16384__num-seq_48__repeat_4__cpg_64
-seq-len_32768__num-seq_24__repeat_3__cpg_128"
+seq-len_8192__num-seq_112__repeat_8__cpg_32"
 )
 
 print_experiments() {
@@ -254,6 +255,16 @@ reset_device() {
   else
     log_err "  RESET_CMD is not set.  Reset the device manually:"
     log_err "    cd /cluster_src/reset_half && make reset UNIT_ID=${UNIT_ID}"
+  fi
+  # In slow mode the reset puts the cores back to fast clock, so chain
+  # cool_down right after to re-engage the slow clock for subsequent rows.
+  if [ "${SPEED:-}" = "slow" ]; then
+    log_warn "  Slow experiment — re-running cool_down after reset"
+    if ( cd /cluster_src/reset_half && make cool_down UNIT_ID="$UNIT_ID" ); then
+      log_warn "  cool_down completed."
+    else
+      log_err "  cool_down failed after reset!  Subsequent rows will run at fast clock."
+    fi
   fi
   log_err "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
   printf "\n"
