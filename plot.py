@@ -421,51 +421,77 @@ def plot_vvadd():
 def plot_roofline():
     """Chip-wide roofline with regular + high-bandwidth scatter points and
     BW/compute envelopes.  Slow CSV's bw/gops are already ×32-projected per
-    pod (run_experiments.sh); we apply the ×8 chip-wide multiplier here."""
+    pod (run_experiments.sh); we apply the ×8 chip-wide multiplier here.
+
+    For each AI value we keep the row with max achieved GOPS, which drops
+    the UNROLL=1/4/8 sweep points at ops=1 that fall below the envelope.
+    """
+    import numpy as np
+    from matplotlib.lines import Line2D
+
     fast = load_roofline(slow=False)
     slow = load_roofline(slow=True)
 
+    def best_per_ai(rows):
+        by_ai = {}
+        for r in rows:
+            v = r.get("achieved_gops_s", "")
+            if not v:
+                continue
+            ai = float(r["arith_intensity_ops_per_byte"])
+            g  = float(v)
+            if ai not in by_ai or g > float(by_ai[ai]["achieved_gops_s"]):
+                by_ai[ai] = r
+        return list(by_ai.values())
+
     def points(rows):
+        rows = best_per_ai(rows)
         ai, bw, gops = [], [], []
         for r in rows:
-            a = float(r["arith_intensity_ops_per_byte"])
             b = bw_chipwide(r)
             g = gops_chipwide(r)
             if b is None or g is None:
                 continue
-            ai.append(a); bw.append(b); gops.append(g)
-        return ai, bw, gops
+            ai.append(float(r["arith_intensity_ops_per_byte"])); bw.append(b); gops.append(g)
+        # Sort by AI for clean envelope plotting.
+        order = sorted(range(len(ai)), key=lambda i: ai[i])
+        return ([ai[i] for i in order], [bw[i] for i in order], [gops[i] for i in order])
 
     ai_f, bw_f, gops_f = points(fast)
     ai_s, bw_s, gops_s = points(slow)
 
-    # Envelopes:  GOps = min(bw_peak * AI, compute_peak)
     bw_peak_reg = max(bw_f)
     bw_peak_hib = max(bw_s)
     cmp_peak_reg = max(gops_f)
     cmp_peak_hib = max(gops_s)
 
-    import numpy as np
-    ai_grid = np.logspace(-1, 5, 200, base=2)
+    # AI grid spans the full range of observed points (and a bit beyond) so
+    # both envelopes cover their entire BW-bound region and compute plateau.
+    ai_lo = min(ai_f + ai_s) / 2
+    ai_hi = max(ai_f + ai_s) * 2
+    ai_grid = np.logspace(np.log10(ai_lo), np.log10(ai_hi), 500)
     env_reg = np.minimum(bw_peak_reg * ai_grid, cmp_peak_reg)
     env_hib = np.minimum(bw_peak_hib * ai_grid, cmp_peak_hib)
 
     for size, suffix in ((SIZE_DEFAULT, ""), (SIZE_WIDE, "_wide")):
         fig, ax = plt.subplots(figsize=size)
-        ax.plot(ai_grid, env_reg, "--", color=COLOR_REGULAR, alpha=0.7,
-                linewidth=2, label=f"regular envelope (BW={bw_peak_reg:.1f} GB/s, "
-                                   f"compute={cmp_peak_reg:.0f} GOPS)")
-        ax.plot(ai_grid, env_hib, "--", color=COLOR_HIBW, alpha=0.7,
-                linewidth=2, label=f"high bandwidth envelope (BW={bw_peak_hib:.1f} GB/s, "
-                                   f"compute={cmp_peak_hib:.0f} GOPS)")
-        ax.scatter(ai_f, gops_f, color=COLOR_REGULAR, s=60, zorder=5, label="regular")
-        ax.scatter(ai_s, gops_s, color=COLOR_HIBW,    s=60, marker="s", zorder=5,
-                   label="high bandwidth")
+        # Plot envelopes (no legend label) and scatter (carries legend label).
+        ax.plot(ai_grid, env_reg, "--", color=COLOR_REGULAR, alpha=0.8, linewidth=2)
+        ax.plot(ai_grid, env_hib, "--", color=COLOR_HIBW,    alpha=0.8, linewidth=2)
+        ax.scatter(ai_f, gops_f, color=COLOR_REGULAR, s=70, zorder=5)
+        ax.scatter(ai_s, gops_s, color=COLOR_HIBW,    s=70, marker="s", zorder=5)
+        # Combined legend: dashed line + marker per regime, single entry each.
+        handles = [
+            Line2D([0], [0], color=COLOR_REGULAR, linestyle="--", marker="o",
+                   markersize=9, linewidth=2, label="regular"),
+            Line2D([0], [0], color=COLOR_HIBW,    linestyle="--", marker="s",
+                   markersize=9, linewidth=2, label="high bandwidth"),
+        ]
         ax.set_xscale("log"); ax.set_yscale("log")
         ax.set_xlabel("Arithmetic Intensity (ops/byte)")
         ax.set_ylabel("GOPS")
-        ax.legend(loc="lower right", frameon=False)
-        ax.set_title("Roofline (chip-wide, all 1024 cores)")
+        ax.legend(handles=handles, loc="lower right", frameon=False)
+        ax.set_title("Roofline")
         save(fig, f"roofline{suffix}")
 
     return {
