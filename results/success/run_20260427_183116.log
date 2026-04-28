@@ -1,0 +1,79 @@
+[18:31:16] Starting experiment run at Mon Apr 27 18:31:16 PDT 2026
+[18:31:16] Experiment  : roofline_fast
+[18:31:16] CSV output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260427_183116.csv
+[18:31:16] Log output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260427_183116.log
+[18:31:16] Apps to run : dummy/roofline
+[18:31:16] UNIT_ID     : 2
+[18:31:16] Speed label : fast
+[18:31:16] Timeout     : 600s per test
+
+[18:31:16] Pre-flight reset (may prompt for sudo password)
+sudo /cluster_src/reset_half/hb_board_v0.5_init.bin 2
+[BSG INFO] checking if init full software directory is valid
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.6250 degree C
+Remote 1 temperature is 31.1875 degree C
+Remote 2 temperature is 32.2500 degree C
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.6875 degree C
+Remote 1 temperature is 30.9375 degree C
+Remote 2 temperature is 31.7500 degree C
+[BSG INFO] cleaning init full software
+[BSG INFO] starting init full software
+[BSG INFO] checking if init full software still running
+[BSG INFO] performing refresh sdr full
+[BSG INFO] finishing init full software
+[BSG INFO] checking if init full software passed
+[BSG INFO] performing refresh sdr init full
+[BSG INFO] cleaning init full software
+[BSG INFO] initialization succeeded
+[18:31:31] reset complete
+
+
+[18:31:31] [0;36m=== dummy/roofline ===[0m
+[18:31:31]   Regenerating test directories for dummy/roofline...
+[18:31:31]   Found 32 test(s)
+[18:31:42] [0;32mOK[0m      dummy/roofline / ops_1024__n-elems_4194304__repeat_66  time=8.030047s  AI=256.0000 ops/B  bw=0.2733 GB/s  gops=69.9663
+[18:31:57] [0;32mOK[0m      dummy/roofline / ops_12288__n-elems_4194304__repeat_9  time=13.124768s  AI=3072.0000 ops/B  bw=0.0229 GB/s  gops=70.2982
+[18:32:05] [0;32mOK[0m      dummy/roofline / ops_128__n-elems_4194304__repeat_128  time=5.57719s  AI=32.0000 ops/B  bw=0.7603 GB/s  gops=24.3291
+[18:32:13] [0;32mOK[0m      dummy/roofline / ops_12__n-elems_4194304__repeat_128  time=5.348642s  AI=3.0000 ops/B  bw=0.7924 GB/s  gops=2.3771
+[18:32:24] [0;32mOK[0m      dummy/roofline / ops_1536__n-elems_4194304__repeat_52  time=9.485118s  AI=384.0000 ops/B  bw=0.1826 GB/s  gops=70.1071
+[18:32:40] [0;32mOK[0m      dummy/roofline / ops_16384__n-elems_4194304__repeat_7  time=13.610206s  AI=4096.0000 ops/B  bw=0.0172 GB/s  gops=70.3156
+[18:32:48] [0;32mOK[0m      dummy/roofline / ops_16__n-elems_4194304__repeat_128  time=5.35171s  AI=4.0000 ops/B  bw=0.7919 GB/s  gops=3.1677
+[18:32:55] [0;32mOK[0m      dummy/roofline / ops_192__n-elems_4194304__repeat_120  time=5.300302s  AI=48.0000 ops/B  bw=0.7495 GB/s  gops=35.9746
+[18:33:03] [0;32mOK[0m      dummy/roofline / ops_1__n-elems_4194304__repeat_128  time=5.344452s  AI=0.2500 ops/B  bw=0.7931 GB/s  gops=0.1983
+[18:33:13] [0;32mOK[0m      dummy/roofline / ops_1__n-elems_4194304__repeat_128__unroll_1  time=8.239717s  AI=0.2500 ops/B  bw=0.5167 GB/s  gops=0.1292
+[18:33:21] [0;32mOK[0m      dummy/roofline / ops_1__n-elems_4194304__repeat_128__unroll_16  time=5.34583s  AI=0.2500 ops/B  bw=0.7927 GB/s  gops=0.1982
+[18:33:29] [0;32mOK[0m      dummy/roofline / ops_1__n-elems_4194304__repeat_128__unroll_4  time=5.350268s  AI=0.2500 ops/B  bw=0.7925 GB/s  gops=0.1981
+[18:33:36] [0;32mOK[0m      dummy/roofline / ops_1__n-elems_4194304__repeat_128__unroll_8  time=5.341727s  AI=0.2500 ops/B  bw=0.7934 GB/s  gops=0.1984
+[18:33:48] [0;32mOK[0m      dummy/roofline / ops_2048__n-elems_4194304__repeat_36  time=9.089562s  AI=512.0000 ops/B  bw=0.1319 GB/s  gops=67.5083
+[18:33:55] [0;32mOK[0m      dummy/roofline / ops_24__n-elems_4194304__repeat_128  time=5.361759s  AI=6.0000 ops/B  bw=0.7910 GB/s  gops=4.7461
+[18:34:02] [0;32mOK[0m      dummy/roofline / ops_256__n-elems_4194304__repeat_112  time=4.943136s  AI=64.0000 ops/B  bw=0.7500 GB/s  gops=47.9971
+[18:34:10] [0;32mOK[0m      dummy/roofline / ops_2__n-elems_4194304__repeat_128  time=5.342451s  AI=0.5000 ops/B  bw=0.7938 GB/s  gops=0.3969
+[18:34:23] [0;32mOK[0m      dummy/roofline / ops_3072__n-elems_4194304__repeat_30  time=10.934595s  AI=768.0000 ops/B  bw=0.0915 GB/s  gops=70.2423
+[18:34:31] [0;32mOK[0m      dummy/roofline / ops_32__n-elems_4194304__repeat_128  time=5.377915s  AI=8.0000 ops/B  bw=0.7881 GB/s  gops=6.3052
+[18:34:38] [0;32mOK[0m      dummy/roofline / ops_384__n-elems_4194304__repeat_104  time=4.86151s  AI=96.0000 ops/B  bw=0.7073 GB/s  gops=67.9043
+[18:34:45] [0;32mOK[0m      dummy/roofline / ops_3__n-elems_4194304__repeat_128  time=5.344451s  AI=0.7500 ops/B  bw=0.7930 GB/s  gops=0.5948
+[18:34:59] [0;32mOK[0m      dummy/roofline / ops_4096__n-elems_4194304__repeat_24  time=11.663415s  AI=1024.0000 ops/B  bw=0.0686 GB/s  gops=70.2600
+[18:35:07] [0;32mOK[0m      dummy/roofline / ops_48__n-elems_4194304__repeat_128  time=5.411618s  AI=12.0000 ops/B  bw=0.7834 GB/s  gops=9.4010
+[18:35:15] [0;32mOK[0m      dummy/roofline / ops_4__n-elems_4194304__repeat_128  time=5.344522s  AI=1.0000 ops/B  bw=0.7929 GB/s  gops=0.7929
+[18:35:23] [0;32mOK[0m      dummy/roofline / ops_512__n-elems_4194304__repeat_92  time=5.606888s  AI=128.0000 ops/B  bw=0.5436 GB/s  gops=69.5820
+[18:35:37] [0;32mOK[0m      dummy/roofline / ops_6144__n-elems_4194304__repeat_16  time=11.662232s  AI=1536.0000 ops/B  bw=0.0458 GB/s  gops=70.2727
+[18:35:44] [0;32mOK[0m      dummy/roofline / ops_64__n-elems_4194304__repeat_128  time=5.444789s  AI=16.0000 ops/B  bw=0.7787 GB/s  gops=12.4586
+[18:35:52] [0;32mOK[0m      dummy/roofline / ops_6__n-elems_4194304__repeat_128  time=5.345437s  AI=1.5000 ops/B  bw=0.7929 GB/s  gops=1.1894
+[18:36:01] [0;32mOK[0m      dummy/roofline / ops_768__n-elems_4194304__repeat_77  time=7.02835s  AI=192.0000 ops/B  bw=0.3641 GB/s  gops=69.8988
+[18:36:15] [0;32mOK[0m      dummy/roofline / ops_8192__n-elems_4194304__repeat_12  time=11.663414s  AI=2048.0000 ops/B  bw=0.0343 GB/s  gops=70.2699
+[18:36:23] [0;32mOK[0m      dummy/roofline / ops_8__n-elems_4194304__repeat_128  time=5.347643s  AI=2.0000 ops/B  bw=0.7925 GB/s  gops=1.5850
+[18:36:31] [0;32mOK[0m      dummy/roofline / ops_96__n-elems_4194304__repeat_128  time=5.513512s  AI=24.0000 ops/B  bw=0.7689 GB/s  gops=18.4529
+
+
+[18:36:31] [0;36m=== Run complete ===[0m
+[18:36:31] Total tests    : 32
+[18:36:31] Results CSV    : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260427_183116.csv
+[18:36:31] Full log       : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260427_183116.log
+[18:36:31] Passed         : 32
+[18:36:31] Failed/Timeout : 0
+
+[18:36:31] Mark this run as successful and archive to /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/success? [y/N] [18:50:43] [0;32mOK[0m  Archived results_20260427_183116.csv and run_20260427_183116.log to /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/success

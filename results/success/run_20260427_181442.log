@@ -1,0 +1,53 @@
+[18:14:42] Starting experiment run at Mon Apr 27 18:14:42 PDT 2026
+[18:14:42] Experiment  : sw2d_seqlen_fast
+[18:14:42] CSV output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260427_181442.csv
+[18:14:42] Log output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260427_181442.log
+[18:14:42] Apps to run : sw/2d
+[18:14:42] UNIT_ID     : 2
+[18:14:42] Speed label : fast
+[18:14:42] Timeout     : 600s per test
+
+[18:14:42] Pre-flight reset (may prompt for sudo password)
+sudo /cluster_src/reset_half/hb_board_v0.5_init.bin 2
+[BSG INFO] checking if init full software directory is valid
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.1250 degree C
+Remote 1 temperature is 28.5000 degree C
+Remote 2 temperature is 29.0625 degree C
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.1875 degree C
+Remote 1 temperature is 28.4375 degree C
+Remote 2 temperature is 28.9375 degree C
+[BSG INFO] cleaning init full software
+[BSG INFO] starting init full software
+[BSG INFO] checking if init full software still running
+[BSG INFO] performing refresh sdr full
+[BSG INFO] finishing init full software
+[BSG INFO] checking if init full software passed
+[BSG INFO] performing refresh sdr init full
+[BSG INFO] cleaning init full software
+[BSG INFO] initialization succeeded
+[18:15:01] reset complete
+
+
+[18:15:01] [0;36m=== sw/2d ===[0m
+[18:15:01]   Regenerating test directories for sw/2d...
+[18:15:01]   Found 6 test(s)
+[18:15:19] [0;32mOK[0m      sw/2d / seq-len_1024__num-seq_1008__repeat_64  time=15.728832s  gcups=4.3007
+[18:15:44] [0;32mOK[0m      sw/2d / seq-len_128__num-seq_8176__repeat_512  time=22.116386s  gcups=3.1011
+[18:16:04] [0;32mOK[0m      sw/2d / seq-len_256__num-seq_4080__repeat_256  time=18.474443s  gcups=3.7052
+[18:16:25] [0;32mOK[0m      sw/2d / seq-len_32__num-seq_16368__repeat_1000  time=18.759674s  gcups=0.8935
+[18:16:46] [0;32mOK[0m      sw/2d / seq-len_512__num-seq_2032__repeat_128  time=17.936635s  gcups=3.8013
+[18:17:02] [1;33mSHORT[0m   sw/2d / seq-len_64__num-seq_16368__repeat_400  time=14.365886s  gcups=1.8667  (< 15s)
+
+
+[18:17:02] [0;36m=== Run complete ===[0m
+[18:17:02] Total tests    : 6
+[18:17:02] Results CSV    : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260427_181442.csv
+[18:17:02] Full log       : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260427_181442.log
+[18:17:02] Passed         : 6
+[18:17:02] Failed/Timeout : 0
+
+[18:17:02] Mark this run as successful and archive to /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/success? [y/N] [18:17:07] [0;32mOK[0m  Archived results_20260427_181442.csv and run_20260427_181442.log to /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/success

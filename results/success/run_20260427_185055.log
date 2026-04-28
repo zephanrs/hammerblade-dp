@@ -1,0 +1,67 @@
+[18:50:55] Starting experiment run at Mon Apr 27 18:50:55 PDT 2026
+[18:50:55] Experiment  : radix_sort_fast
+[18:50:55] CSV output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260427_185055.csv
+[18:50:55] Log output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260427_185055.log
+[18:50:55] Apps to run : radix_sort
+[18:50:55] UNIT_ID     : 2
+[18:50:55] Speed label : fast
+[18:50:55] Timeout     : 600s per test
+
+[18:50:55] Pre-flight reset (may prompt for sudo password)
+sudo /cluster_src/reset_half/hb_board_v0.5_init.bin 2
+[BSG INFO] checking if init full software directory is valid
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.6875 degree C
+Remote 1 temperature is 31.1875 degree C
+Remote 2 temperature is 32.1875 degree C
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.6875 degree C
+Remote 1 temperature is 30.9375 degree C
+Remote 2 temperature is 31.7500 degree C
+[BSG INFO] cleaning init full software
+[BSG INFO] starting init full software
+[BSG INFO] checking if init full software still running
+[BSG INFO] performing refresh sdr full
+[BSG INFO] finishing init full software
+[BSG INFO] checking if init full software passed
+[BSG INFO] performing refresh sdr init full
+[BSG INFO] cleaning init full software
+[BSG INFO] initialization succeeded
+[18:51:09] reset complete
+
+
+[18:51:09] [0;36m=== radix_sort ===[0m
+[18:51:09]   Regenerating test directories for radix_sort...
+[18:51:10]   Found 18 test(s)
+[18:51:47] [0;32mOK[0m      radix_sort / radix_sort_1048576__num-arr_256  time=21.597384s  gcups=N/A
+[18:52:26] [0;32mOK[0m      radix_sort / radix_sort_131072__num-arr_2048  time=23.16132s  gcups=N/A
+[18:53:03] [0;32mOK[0m      radix_sort / radix_sort_134217728__num-arr_2  time=20.666375s  gcups=N/A
+[18:53:22] [1;33mSHORT[0m   radix_sort / radix_sort_16384__num-arr_16384  time=3.116892s  gcups=N/A  (< 15s)
+[18:54:02] [0;32mOK[0m      radix_sort / radix_sort_16777216__num-arr_16  time=22.931653s  gcups=N/A
+[18:54:27] [1;33mSHORT[0m   radix_sort / radix_sort_2048__num-arr_131072  time=8.544605s  gcups=N/A  (< 15s)
+[18:55:04] [0;32mOK[0m      radix_sort / radix_sort_2097152__num-arr_128  time=21.394893s  gcups=N/A
+[18:55:44] [0;32mOK[0m      radix_sort / radix_sort_262144__num-arr_1024  time=23.849236s  gcups=N/A
+[18:55:54] [1;33mWARN[0m    radix_sort / radix_sort_268435456__num-arr_1  no kernel timing in exec.log
+[18:55:54] [1;33mSHORT[0m   radix_sort / radix_sort_268435456__num-arr_1  time=N/As  gcups=N/A  (< 15s)
+[18:56:13] [1;33mSHORT[0m   radix_sort / radix_sort_32768__num-arr_8192  time=3.56982s  gcups=N/A  (< 15s)
+[18:56:54] [0;32mOK[0m      radix_sort / radix_sort_33554432__num-arr_8  time=23.963735s  gcups=N/A
+[18:57:15] [1;33mSHORT[0m   radix_sort / radix_sort_4096__num-arr_65536  time=5.623866s  gcups=N/A  (< 15s)
+[18:57:52] [0;32mOK[0m      radix_sort / radix_sort_4194304__num-arr_64  time=21.297902s  gcups=N/A
+[18:58:31] [0;32mOK[0m      radix_sort / radix_sort_524288__num-arr_512  time=22.428867s  gcups=N/A
+[18:59:06] [0;32mOK[0m      radix_sort / radix_sort_65536__num-arr_4096  time=19.756408s  gcups=N/A
+[18:59:44] [0;32mOK[0m      radix_sort / radix_sort_67108864__num-arr_4  time=21.694744s  gcups=N/A
+[19:00:11] [1;33mSHORT[0m   radix_sort / radix_sort_8192__num-arr_32768  time=4.412043s  gcups=N/A  (< 15s)
+[19:00:24] [1;33mWARN[0m    radix_sort / radix_sort_8388608__num-arr_32  no kernel timing in exec.log
+[19:00:24] [1;33mSHORT[0m   radix_sort / radix_sort_8388608__num-arr_32  time=N/As  gcups=N/A  (< 15s)
+
+
+[19:00:24] [0;36m=== Run complete ===[0m
+[19:00:24] Total tests    : 18
+[19:00:24] Results CSV    : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260427_185055.csv
+[19:00:24] Full log       : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260427_185055.log
+[19:00:24] Passed         : 18
+[19:00:24] Failed/Timeout : 0
+
+[19:00:24] Mark this run as successful and archive to /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/success? [y/N] [19:00:44] [0;32mOK[0m  Archived results_20260427_185055.csv and run_20260427_185055.log to /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/success

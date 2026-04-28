@@ -1,0 +1,50 @@
+[09:04:12] Starting experiment run at Tue Apr 28 09:04:12 PDT 2026
+[09:04:12] Experiment  : nw_naive_fast
+[09:04:12] CSV output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260428_090412.csv
+[09:04:12] Log output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260428_090412.log
+[09:04:12] Apps to run : nw/naive
+[09:04:12] UNIT_ID     : 2
+[09:04:12] Speed label : fast
+[09:04:12] Timeout     : 300s per test
+
+[09:04:12] Pre-flight reset (may prompt for sudo password)
+sudo /cluster_src/reset_half/hb_board_v0.5_init.bin 2
+[BSG INFO] checking if init full software directory is valid
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.7500 degree C
+Remote 1 temperature is 31.6875 degree C
+Remote 2 temperature is 32.7500 degree C
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 25.7500 degree C
+Remote 1 temperature is 31.4375 degree C
+Remote 2 temperature is 32.3125 degree C
+[BSG INFO] cleaning init full software
+[BSG INFO] starting init full software
+[BSG INFO] checking if init full software still running
+[BSG INFO] performing refresh sdr full
+[BSG INFO] finishing init full software
+[BSG INFO] checking if init full software passed
+[BSG INFO] performing refresh sdr init full
+[BSG INFO] cleaning init full software
+[BSG INFO] initialization succeeded
+[09:04:24] reset complete
+
+
+[09:04:24] [0;36m=== nw/naive ===[0m
+[09:04:24]   Regenerating test directories for nw/naive...
+[09:04:24]   Found 3 test(s)
+[09:04:28] [1;33mSHORT[0m   nw/naive / seq-len_128__num-seq_2032__repeat_10  time=2.260523s  gcups=0.1473  (< 15s)
+[09:04:49] [0;32mOK[0m      nw/naive / seq-len_32__num-seq_8176__repeat_331  time=19.859092s  gcups=0.1395
+[09:05:10] [0;32mOK[0m      nw/naive / seq-len_64__num-seq_4080__repeat_171  time=19.676214s  gcups=0.1452
+
+
+[09:05:10] [0;36m=== Run complete ===[0m
+[09:05:10] Total tests    : 3
+[09:05:10] Results CSV    : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260428_090412.csv
+[09:05:10] Full log       : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260428_090412.log
+[09:05:10] Passed         : 3
+[09:05:10] Failed/Timeout : 0
+
+[09:05:10] Mark this run as successful and archive to /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/success? [y/N] [09:05:16] [0;32mOK[0m  Archived results_20260428_090412.csv and run_20260428_090412.log to /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/success
