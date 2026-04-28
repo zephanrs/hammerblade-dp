@@ -361,16 +361,23 @@ run_test() {
 
   # ── Extract timing ─────────────────────────────────────────────────────────
   # Prefer the device-side Cudalite µs counter (accurate to 1 µs); fall back
-  # to the host-side kernel_launch_time_sec if for some reason the µs line is
-  # missing.  Short kernels (<5 s) gain meaningful precision from this.
-  local timing
-  timing="$(parse_cudalite_sec "$exec_log")"
-  if [ -z "$timing" ]; then
-    timing="$(parse_exec_val kernel_launch_time_sec "$exec_log")"
+  # to the host-side kernel_launch_time_sec if the µs line is missing OR the
+  # parsed value isn't a sensible positive number (e.g. parser returned blank
+  # / zero / non-numeric).  The host print is from print_kernel_launch_time
+  # in main.cpp and is essentially always present on a successful kernel run.
+  local timing_cuda timing_host timing="" timing_src=""
+  timing_cuda="$(parse_cudalite_sec "$exec_log")"
+  timing_host="$(parse_exec_val kernel_launch_time_sec "$exec_log")"
+  if [[ "$timing_cuda" =~ ^[0-9]+\.?[0-9]*$ ]] && [ "${timing_cuda%.*}" != "0" -o "${timing_cuda#0.}" != "0" ]; then
+    timing="$timing_cuda"
+    timing_src="cudalite_us"
+  elif [[ "$timing_host" =~ ^[0-9]+\.?[0-9]*([eE][+-]?[0-9]+)?$ ]]; then
+    timing="$timing_host"
+    timing_src="host_print"
   fi
   if [ -z "$timing" ]; then
-    printf "[%s] ${YELLOW}WARN${RESET}    %s / %s  no kernel timing in exec.log\n" \
-      "$(ts)" "$app" "$test_name"
+    printf "[%s] ${YELLOW}WARN${RESET}    %s / %s  no kernel timing in exec.log (cuda='%s' host='%s')\n" \
+      "$(ts)" "$app" "$test_name" "$timing_cuda" "$timing_host"
     timing="N/A"
   fi
 
