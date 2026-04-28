@@ -31,7 +31,11 @@ DATA  = REPO / "data"
 OUT   = REPO / "charts"
 OUT.mkdir(exist_ok=True)
 
-DPI = 300
+DPI = 150                # Lower than 300 so Google Slides doesn't downsample
+                         # (which it does aggressively above ~2000 px on the
+                         # long edge, blurring text/lines).  At 150 DPI the
+                         # default size is 1500×1200 px, well within Slides'
+                         # native display range.
 SIZE_DEFAULT = (10, 8)   # 1.25:1 aspect
 SIZE_WIDE    = (21, 9)   # ~2.33:1 aspect, for many-series plots
 
