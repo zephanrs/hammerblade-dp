@@ -1,42 +1,43 @@
 # Sorting (radix sort) charts
 
 Same conventions as `smithwaterman.md`: 10×8 inches default (21×9 wide
-variant), 150 dpi.  Sequence-of-array sizes on log base 2 (K = 1024,
-M = 1024²).
+variant), 150 dpi.  Array sizes on log base 2 (K = 1024, M = 1024²).
 
-The kernel sorts `NUM_ARR` distinct `SIZE`-element arrays per call;
-each row keeps `NUM_ARR × SIZE ≈ 256 M ints` so total work is held
-constant.  Time differences across sizes are entirely **per-element
-cost**.
+**All numbers are single-pod** — only pod 0 sorts in this kernel
+(see `radix_sort/tests.mk` header), so we do *not* multiply by 8.
 
-## The vcache cliff at SIZE = 64 K — and how much high bandwidth helps
+The slow run scaled `num_arr` by 1/8 (per `run_experiments.sh`); high-
+bandwidth values divide raw slow time by 32 (sim32bw projection) and
+use the actual num_arr the kernel ran with.
 
-Per-element cost (regular) stays in the **~10–30 ns** band while each
-array fits in the per-pod vcache (SIZE ≤ 32 K ints, 128 KB).  Past that,
-the sort spills to DRAM and per-element cost jumps to **~70–80 ns** — a
-~6× cliff.  With high bandwidth (slow run × 32 sim32bw), the post-cliff
-cost drops back to **~13 ns** — essentially **eliminating the cliff** so
-DRAM-resident sorts cost roughly the same per element as in-vcache ones.
+## The vcache cliff at SIZE = 64 K — and how high bandwidth flattens it
 
-Pre-cliff, high bandwidth still helps a few × — even at SIZE ≤ 32 K the
-sort isn't perfectly compute-bound (there's some scan / scatter traffic
-beyond the active vcache lines, and the slow-mode `num_arr /= 8`
-scaling shifts the work-vs-overhead balance).
+Time-per-array (regular) jumps ~6× as soon as a single array overflows
+the 128 KB per-pod vcache.  Throughput (elements/ns) shows the same
+story inverted: regular peaks at ~0.086 elements/ns at SIZE = 16 K,
+collapses to ~0.012 past the cliff.  With high bandwidth, the
+post-cliff regime climbs back to **~0.07 elements/ns** — about
+**6× higher** than regular post-cliff, basically erasing the cliff.
 
-Both plots: blue = regular, orange = high bandwidth.  The high-bandwidth
-raw-time curve is extrapolated to the regular run's nominal work amount
-(NUM_ARR × SIZE = 256 M ints) so the two curves are directly comparable.
+Pre-cliff, high bandwidth still helps several × — even fully cache-
+resident sorts have non-trivial scan/scatter traffic that benefits
+from more memory bandwidth.
 
-## Raw kernel time
+## Time per array
 
 ### `radix_time.png` / `radix_time_wide.png`
 
-![Radix raw time — 10×8](radix_time.png)
-![Radix raw time — 21×9 wide](radix_time_wide.png)
+![Radix time/array — 10×8](radix_time.png)
+![Radix time/array — 21×9 wide](radix_time_wide.png)
 
-## ns per element
+## Throughput (elements/ns)
 
-### `radix_ns_per_elem.png` / `radix_ns_per_elem_wide.png`
+### Log y — `radix_elem_per_ns.png` / `radix_elem_per_ns_wide.png`
 
-![Radix ns/element — 10×8](radix_ns_per_elem.png)
-![Radix ns/element — 21×9 wide](radix_ns_per_elem_wide.png)
+![Radix elements/ns — log — 10×8](radix_elem_per_ns.png)
+![Radix elements/ns — log — 21×9 wide](radix_elem_per_ns_wide.png)
+
+### Linear y — `radix_elem_per_ns_linear.png` / `radix_elem_per_ns_linear_wide.png`
+
+![Radix elements/ns — linear — 10×8](radix_elem_per_ns_linear.png)
+![Radix elements/ns — linear — 21×9 wide](radix_elem_per_ns_linear_wide.png)

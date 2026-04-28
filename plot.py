@@ -563,15 +563,20 @@ def plot_nw():
 
 
 def plot_radix_sort():
-    """Radix sort: raw kernel time (s) and per-element cost (ns) vs SIZE.
+    """Radix sort: time per single-array sort (µs) and elements/ns vs SIZE.
 
-    Two curves on each chart: regular (blue) and high-bandwidth (orange).
-    Slow CSV's NUM_ARR was scaled /8 by run_experiments.sh, so:
+    All values are SINGLE-POD — only pod 0 sorts; we do NOT multiply by 8.
+
+    Slow CSV's NUM_ARR was scaled /8 by run_experiments.sh:
         actual_num_arr_slow = max(1, test_name_num_arr // 8)
-        ns_per_elem_hibw    = (t_slow / 32) × 1e9 / (actual_num_arr × SIZE)
-        raw_time_hibw       = (t_slow / 32) × (test_num_arr / actual_num_arr)
-            ↑ extrapolated to "regular's nominal work amount" (256 M ints)
-              so the two raw-time curves are directly comparable.
+
+    Time/array (µs):
+        regular: t_fast × 1e6 / test_num_arr
+        high BW: (t_slow / 32) × 1e6 / actual_num_arr
+
+    Elements/ns:
+        regular: (test_num_arr × SIZE) / (t_fast × 1e9)
+        high BW: (actual_num_arr × SIZE) / ((t_slow / 32) × 1e9)
     """
     def parse_row(r, slow=False):
         # test_name = "radix_sort_<SIZE>__num-arr_<N>"
@@ -584,12 +589,12 @@ def plot_radix_sort():
         t = float(r["kernel_time_sec"])
         if slow:
             actual_na = max(1, tna // 8)
-            t_eff = (t / 32) * (tna / actual_na)   # full-work-extrapolated
-            ns    = (t / 32) * 1e9 / (actual_na * sz)
+            t_per_arr_us = (t / 32) * 1e6 / actual_na
+            elem_ns      = (actual_na * sz) / ((t / 32) * 1e9)
         else:
-            t_eff = t
-            ns    = t * 1e9 / (tna * sz)
-        return (sz, t_eff, ns)
+            t_per_arr_us = t * 1e6 / tna
+            elem_ns      = (tna * sz) / (t * 1e9)
+        return (sz, t_per_arr_us, elem_ns)
 
     fast_rows = []
     for c in (DATA / "radix_sort_fast").glob("results_*.csv"):
@@ -601,11 +606,11 @@ def plot_radix_sort():
     slow_rows = sorted(p for p in slow_rows if p is not None)
 
     sizes_f = [p[0] for p in fast_rows]
-    t_f     = [p[1] for p in fast_rows]
-    ns_f    = [p[2] for p in fast_rows]
+    tarr_f  = [p[1] for p in fast_rows]   # time per array (µs)
+    e_f     = [p[2] for p in fast_rows]   # elements/ns
     sizes_s = [p[0] for p in slow_rows]
-    t_s     = [p[1] for p in slow_rows]
-    ns_s    = [p[2] for p in slow_rows]
+    tarr_s  = [p[1] for p in slow_rows]
+    e_s     = [p[2] for p in slow_rows]
 
     all_sizes = sorted(set(sizes_f) | set(sizes_s))
 
@@ -617,25 +622,37 @@ def plot_radix_sort():
         ax.set_xlabel("Array Size")
 
     for size, suffix in ((SIZE_DEFAULT, ""), (SIZE_WIDE, "_wide")):
+        # Time per array sort (log y, µs).
         fig, ax = plt.subplots(figsize=size)
-        ax.plot(sizes_f, t_f, "o-", color=COLOR_REGULAR, label="regular")
-        ax.plot(sizes_s, t_s, "s-", color=COLOR_HIBW,    label="high bandwidth")
+        ax.plot(sizes_f, tarr_f, "o-", color=COLOR_REGULAR, label="regular")
+        ax.plot(sizes_s, tarr_s, "s-", color=COLOR_HIBW,    label="high bandwidth")
         make_size_axis(ax)
         ax.set_yscale("log")
-        ax.set_ylabel("Kernel time (s)")
+        ax.set_ylabel("Time/array (µs)")
         ax.legend(loc="best", frameon=False)
         ax.set_title("Radix sort performance")
         save(fig, f"radix_time{suffix}")
 
+        # elements/ns — log y.
         fig, ax = plt.subplots(figsize=size)
-        ax.plot(sizes_f, ns_f, "o-", color=COLOR_REGULAR, label="regular")
-        ax.plot(sizes_s, ns_s, "s-", color=COLOR_HIBW,    label="high bandwidth")
+        ax.plot(sizes_f, e_f, "o-", color=COLOR_REGULAR, label="regular")
+        ax.plot(sizes_s, e_s, "s-", color=COLOR_HIBW,    label="high bandwidth")
         make_size_axis(ax)
         ax.set_yscale("log")
-        ax.set_ylabel("ns/element")
+        ax.set_ylabel("elements/ns")
         ax.legend(loc="best", frameon=False)
         ax.set_title("Radix sort performance")
-        save(fig, f"radix_ns_per_elem{suffix}")
+        save(fig, f"radix_elem_per_ns{suffix}")
+
+        # elements/ns — linear y.
+        fig, ax = plt.subplots(figsize=size)
+        ax.plot(sizes_f, e_f, "o-", color=COLOR_REGULAR, label="regular")
+        ax.plot(sizes_s, e_s, "s-", color=COLOR_HIBW,    label="high bandwidth")
+        make_size_axis(ax)
+        ax.set_ylabel("elements/ns")
+        ax.legend(loc="best", frameon=False)
+        ax.set_title("Radix sort performance")
+        save(fig, f"radix_elem_per_ns_linear{suffix}")
 
 
 def main():
