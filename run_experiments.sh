@@ -122,7 +122,14 @@ seq-len_32768__num-seq_24__repeat_3__cpg_128"
 
 print_experiments() {
   cat >&2 <<EOF
-Usage: $0 <experiment-name>
+Usage: $0 <experiment-name> [<failed-list.txt>]
+
+  <experiment-name>     One of the names below.
+  <failed-list.txt>     Optional.  Path to a results/failed_<TS>.txt
+                        produced by an earlier run.  Re-runs only the
+                        test_names listed there (column 2) under the
+                        chosen experiment's settings.  Exits cleanly
+                        if the file has no entries.
 
 Available experiments (see EXPERIMENTS.md):
   sw1d_cpg_fast       sw/1d CPG × seq_len sweep, fast clock        (50 runs)
@@ -140,7 +147,7 @@ Available experiments (see EXPERIMENTS.md):
 EOF
 }
 
-if [ $# -ne 1 ] || [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+if [ $# -lt 1 ] || [ $# -gt 2 ] || [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
   print_experiments
   exit 1
 fi
@@ -150,6 +157,23 @@ if [ -z "${EXPERIMENT_APPS[$EXPERIMENT]:-}" ]; then
   printf "Unknown experiment: %s\n\n" "$EXPERIMENT" >&2
   print_experiments
   exit 1
+fi
+
+# Optional re-run list.  Reads test_names from column 2 of the file (the
+# format produced by the "Re-run candidates" section at the end of an
+# earlier run's log).  Used downstream as a row whitelist that overrides
+# the experiment's default EXPERIMENT_ROW_FILTER.
+RERUN_LIST=""
+if [ $# -eq 2 ]; then
+  if [ ! -f "$2" ]; then
+    printf "Re-run list not found: %s\n" "$2" >&2
+    exit 1
+  fi
+  RERUN_LIST="$(awk 'NF >= 2 {print $2}' "$2" | sort -u)"
+  if [ -z "$RERUN_LIST" ]; then
+    printf "No entries in %s — nothing to re-run.\n" "$2"
+    exit 0
+  fi
 fi
 
 # shellcheck disable=SC2206
@@ -493,9 +517,19 @@ for app in "${RUN_APPS[@]}"; do
     continue
   fi
 
-  # Apply per-experiment row filter (if any) — used by slow experiments that
-  # subset the fast tests.mk.  An unset/empty filter keeps all rows.
-  row_filter="${EXPERIMENT_ROW_FILTER[$EXPERIMENT]:-}"
+  # Row whitelist precedence:
+  #   1. RERUN_LIST (from optional CLI arg) — overrides the experiment's
+  #      default filter, so the same experiment can be replayed against
+  #      just the failed rows.
+  #   2. EXPERIMENT_ROW_FILTER (slow experiments that subset fast tests.mk).
+  #   3. Unset → all rows in tests.mk.
+  if [ -n "$RERUN_LIST" ]; then
+    row_filter="$RERUN_LIST"
+    filter_label="re-run list"
+  else
+    row_filter="${EXPERIMENT_ROW_FILTER[$EXPERIMENT]:-}"
+    filter_label="$EXPERIMENT row filter"
+  fi
   if [ -n "$row_filter" ]; then
     filtered_dirs=()
     for tdir in "${test_dirs[@]}"; do
@@ -503,7 +537,7 @@ for app in "${RUN_APPS[@]}"; do
       if echo "$row_filter" | grep -qx "$tname"; then
         filtered_dirs+=("$tdir")
       else
-        log "  Skipping $tname (not in $EXPERIMENT row filter)"
+        log "  Skipping $tname (not in $filter_label)"
       fi
     done
     test_dirs=("${filtered_dirs[@]}")
