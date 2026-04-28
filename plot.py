@@ -8,13 +8,16 @@ Conventions (project-wide):
 - Default figure size: 10×8 inches.
 - Wider variant (for plots with more legend / many series): 21×9 inches.
 - DPI 300, PNG only.
-- Sequence-length axis: log base 2, ticks labeled with raw integers
-  (32, 64, 128 — never 2^5, 2^6, ...).
-- Time/sequence: log scale (microseconds).  GCUPs: linear.
-- All GCUPs values are scaled ×8 so they reflect the chip (all 8 pods).
+- Sequence-length axis: log base 2, ticks labeled with raw integers.
+- Time/sequence in microseconds, log scale.  GCUPs linear.
+- All GCUPs / BW / GOps values are chip-wide (×8 from per-pod data so the
+  number reflects all 1024 cores: 8 pods × 128 tiles).
 - Colors: when comparing regular vs high-bandwidth runs, **always**
-  blue = regular, orange = high bandwidth (see memory).  Other
+  blue = regular, orange = high bandwidth (project memory).  Other
   comparisons use a distinct palette to avoid name collisions.
+- High-bandwidth = slow run with the time scaled down by 32×.  In the
+  CSV that already happened (run_experiments.sh applies the projection
+  to throughput cols).  In raw-data plots (vvadd) we apply it inline.
 """
 
 import csv
@@ -32,6 +35,8 @@ DPI = 300
 SIZE_DEFAULT = (10, 8)   # 1.25:1 aspect
 SIZE_WIDE    = (21, 9)   # ~2.33:1 aspect, for many-series plots
 
+NUM_PODS = 8
+
 # Regular vs high-bandwidth comparison colors (project-wide convention).
 COLOR_REGULAR = "#1f77b4"  # blue
 COLOR_HIBW    = "#ff7f0e"  # orange
@@ -41,8 +46,7 @@ COLOR_1D = "#2ca02c"  # green
 COLOR_2D = "#d62728"  # red
 
 # Per-CPG colors for the all-CPG sweep plots.  Cool → warm as cpg grows.
-# cpg=2 dropped — only one row passed (most timed out at scale), and it
-# adds noise without insight relative to cpg=1 / cpg=4.
+# cpg=2 dropped — only one row passed (most timed out at scale).
 CPG_COLORS = {
     1:   "#1f77b4",
     4:   "#2ca02c",
@@ -85,11 +89,23 @@ def time_per_seq_us(row):
     t  = float(row["kernel_time_sec"])
     ns = int(row["num_seq"])
     rp = int(row["repeat"])
-    return t * 1e6 / (8 * ns * rp)
+    return t * 1e6 / (NUM_PODS * ns * rp)
 
 
 def gcups_chipwide(row):
-    return float(row["gcups"]) * 8
+    """SW GCUPs over all 1024 cores (= per-pod CSV value × 8)."""
+    return float(row["gcups"]) * NUM_PODS
+
+
+def bw_chipwide(row):
+    """Roofline BW (GB/s) over all 1024 cores."""
+    v = row.get("achieved_bw_GB_s", "")
+    return float(v) * NUM_PODS if v else None
+
+
+def gops_chipwide(row):
+    v = row.get("achieved_gops_s", "")
+    return float(v) * NUM_PODS if v else None
 
 
 def best_per_seqlen(rows):
@@ -100,6 +116,53 @@ def best_per_seqlen(rows):
         if sl not in out or float(r["gcups"]) > float(out[sl]["gcups"]):
             out[sl] = r
     return [out[k] for k in sorted(out)]
+
+
+def load_sw1d_fast():
+    return [r for r in load_csv(DATA / "sw1d_cpg_fast" / "combined.csv")
+            if is_ok(r) and int(r["cpg"]) not in EXCLUDED_CPGS]
+
+
+def load_sw2d_fast():
+    return [r for r in load_csv(DATA / "sw2d_seqlen_fast" / "results_20260427_181442.csv")
+            if is_ok(r)]
+
+
+def load_sw1d_slow():
+    """5 OK rows from sw1d_cpg_slow (one cpg=8192 timed out)."""
+    rows = []
+    for c in (DATA / "sw1d_cpg_slow").glob("results_*.csv"):
+        rows += [r for r in load_csv(c) if is_ok(r)]
+    return rows
+
+
+def load_sw2d_slow():
+    rows = []
+    for c in (DATA / "sw2d_seqlen_slow").glob("results_*.csv"):
+        rows += [r for r in load_csv(c) if is_ok(r)]
+    return rows
+
+
+def load_roofline(slow):
+    """Combine all OK rows from data/roofline_{fast,slow}/results_*.csv.
+
+    For slow, two CSVs exist (initial + retry-failed).  Concat, then
+    dedupe by test_name keeping the OK row.
+    """
+    sub = "roofline_slow" if slow else "roofline_fast"
+    rows = []
+    for c in sorted((DATA / sub).glob("results_*.csv")):
+        rows += [r for r in load_csv(c) if is_ok(r)]
+    # Dedupe: keep first OK occurrence per test_name (csvs are listed in time
+    # order; the retry CSV adds rows that were missing in the initial).
+    seen = set()
+    out = []
+    for r in rows:
+        if r["test_name"] in seen:
+            continue
+        seen.add(r["test_name"])
+        out.append(r)
+    return out
 
 
 # ─── Plot helpers ────────────────────────────────────────────────────────────
@@ -130,7 +193,7 @@ def save(fig, name):
 
 # ─── Plots ───────────────────────────────────────────────────────────────────
 def plot_2d():
-    rows = [r for r in load_csv(DATA / "sw2d_seqlen_fast" / "results_20260427_181442.csv") if is_ok(r)]
+    rows = load_sw2d_fast()
     rows.sort(key=lambda r: int(r["seq_len"]))
     seq_lens = [int(r["seq_len"]) for r in rows]
     times    = [time_per_seq_us(r) for r in rows]
@@ -150,8 +213,7 @@ def plot_2d():
 
 
 def plot_1d_best():
-    rows = [r for r in load_csv(DATA / "sw1d_cpg_fast" / "combined.csv")
-            if is_ok(r) and int(r["cpg"]) not in EXCLUDED_CPGS]
+    rows = load_sw1d_fast()
     best = best_per_seqlen(rows)
     seq_lens = [int(r["seq_len"]) for r in best]
     times    = [time_per_seq_us(r) for r in best]
@@ -172,8 +234,7 @@ def plot_1d_best():
 
 
 def plot_1d_all_cpg():
-    rows = [r for r in load_csv(DATA / "sw1d_cpg_fast" / "combined.csv")
-            if is_ok(r) and int(r["cpg"]) not in EXCLUDED_CPGS]
+    rows = load_sw1d_fast()
     by_cpg = {}
     for r in rows:
         by_cpg.setdefault(int(r["cpg"]), []).append(r)
@@ -181,7 +242,13 @@ def plot_1d_all_cpg():
         by_cpg[cpg].sort(key=lambda r: int(r["seq_len"]))
     all_seqlens = sorted({int(r["seq_len"]) for r in rows})
 
+    # Common max across cpg ∈ {4, 8, 16, 32, 64, 128} — for the max-line variant.
+    high_cpgs = [c for c in by_cpg if c >= 4]
+    common_max = max(gcups_chipwide(r)
+                     for c in high_cpgs for r in by_cpg[c])
+
     for size, suffix in ((SIZE_DEFAULT, ""), (SIZE_WIDE, "_wide")):
+        # ── time ───────────────────────────────────────────────────────────
         fig, ax = plt.subplots(figsize=size)
         for cpg in sorted(by_cpg):
             sls   = [int(r["seq_len"]) for r in by_cpg[cpg]]
@@ -192,6 +259,7 @@ def plot_1d_all_cpg():
         ax.set_title("1D performance")
         save(fig, f"1d_allcpg_time{suffix}")
 
+        # ── gcups ──────────────────────────────────────────────────────────
         fig, ax = plt.subplots(figsize=size)
         for cpg in sorted(by_cpg):
             sls   = [int(r["seq_len"]) for r in by_cpg[cpg]]
@@ -202,12 +270,24 @@ def plot_1d_all_cpg():
         ax.set_title("1D performance")
         save(fig, f"1d_allcpg_gcups{suffix}")
 
+        # ── gcups with max line for cpg ≥ 4 ────────────────────────────────
+        fig, ax = plt.subplots(figsize=size)
+        for cpg in sorted(by_cpg):
+            sls   = [int(r["seq_len"]) for r in by_cpg[cpg]]
+            gcups = [gcups_chipwide(r) for r in by_cpg[cpg]]
+            ax.plot(sls, gcups, "o-", color=CPG_COLORS[cpg], label=f"cpg={cpg}")
+        ax.axhline(common_max, color="black", linestyle="--", linewidth=1.5,
+                   label=f"max (cpg≥4) ≈ {common_max:.1f}")
+        style_seqlen_axis(ax, all_seqlens); gcups_axis(ax)
+        ax.legend(ncol=2, loc="best", frameon=False)
+        ax.set_title("1D performance — common max for cpg ≥ 4")
+        save(fig, f"1d_allcpg_gcups_max{suffix}")
+
 
 def plot_1d_vs_2d():
-    rows_2d = [r for r in load_csv(DATA / "sw2d_seqlen_fast" / "results_20260427_181442.csv") if is_ok(r)]
+    rows_2d = load_sw2d_fast()
     rows_2d.sort(key=lambda r: int(r["seq_len"]))
-    rows_1d = [r for r in load_csv(DATA / "sw1d_cpg_fast" / "combined.csv")
-               if is_ok(r) and int(r["cpg"]) not in EXCLUDED_CPGS]
+    rows_1d = load_sw1d_fast()
     best_1d = {int(r["seq_len"]): r for r in best_per_seqlen(rows_1d)}
     by_2d   = {int(r["seq_len"]): r for r in rows_2d}
     common  = sorted(set(best_1d) & set(by_2d))
@@ -234,8 +314,56 @@ def plot_1d_vs_2d():
     save(fig, "compare_gcups")
 
 
+# ─── SW: effect of high bandwidth ────────────────────────────────────────────
+def plot_sw_effect_hibw():
+    """Regular vs high-bandwidth GCUPs for sw/1d and sw/2d."""
+    # sw/2d: all 6 seq_lens have both fast and slow OK.
+    fast_2d = {int(r["seq_len"]): r for r in load_sw2d_fast()}
+    slow_2d = {int(r["seq_len"]): r for r in load_sw2d_slow()}
+    common_2d = sorted(set(fast_2d) & set(slow_2d))
+
+    # sw/1d: pair fast and slow at the same (cpg, seq_len).
+    fast_1d_idx = {(int(r["cpg"]), int(r["seq_len"])): r for r in load_sw1d_fast()}
+    slow_1d_idx = {(int(r["cpg"]), int(r["seq_len"])): r for r in load_sw1d_slow()}
+    common_1d = sorted(set(fast_1d_idx) & set(slow_1d_idx),
+                       key=lambda x: x[1])  # sort by seq_len
+
+    # ── sw/2d only ─────────────────────────────────────────────────────────
+    reg = [gcups_chipwide(fast_2d[sl]) for sl in common_2d]
+    hib = [gcups_chipwide(slow_2d[sl]) for sl in common_2d]
+    fig, ax = plt.subplots(figsize=SIZE_DEFAULT)
+    ax.plot(common_2d, reg, "o-", color=COLOR_REGULAR, label="regular")
+    ax.plot(common_2d, hib, "s-", color=COLOR_HIBW,    label="high bandwidth")
+    style_seqlen_axis(ax, common_2d); gcups_axis(ax)
+    ax.legend(loc="best", frameon=False)
+    ax.set_title("2D — effect of high bandwidth")
+    save(fig, "2d_effect_hibw")
+
+    # ── sw/1d (sparse) ─────────────────────────────────────────────────────
+    sls_1d = [sl for (_, sl) in common_1d]
+    reg_1d = [gcups_chipwide(fast_1d_idx[k]) for k in common_1d]
+    hib_1d = [gcups_chipwide(slow_1d_idx[k]) for k in common_1d]
+    fig, ax = plt.subplots(figsize=SIZE_DEFAULT)
+    ax.plot(sls_1d, reg_1d, "o-", color=COLOR_REGULAR, label="regular")
+    ax.plot(sls_1d, hib_1d, "s-", color=COLOR_HIBW,    label="high bandwidth")
+    # Annotate each point with its cpg.
+    for (cpg, sl), r in zip(common_1d, reg_1d):
+        ax.annotate(f"cpg={cpg}", (sl, r), textcoords="offset points",
+                    xytext=(8, -16), fontsize=11)
+    style_seqlen_axis(ax, sls_1d); gcups_axis(ax)
+    ax.legend(loc="best", frameon=False)
+    ax.set_title("1D — effect of high bandwidth (best per CPG)")
+    save(fig, "1d_effect_hibw")
+
+
+# ─── vvadd ───────────────────────────────────────────────────────────────────
+def vvadd_chipwide_GBs(size, t_us):
+    """vvadd c = a + b: 2 reads + 1 write × 4 B per int × 8 pods = 96 B/elem.
+    t in µs → s = t × 1e-6, so GB/s = 96 N / (t_us × 1e3)."""
+    return [96 * s / (t * 1e3) for s, t in zip(size, t_us)]
+
+
 def plot_vvadd():
-    """vvadd diagnostic: regular vs high-bandwidth chip-wide BW + time."""
     fast = load_csv(DATA / "vvadd" / "fast.csv")
     slow = load_csv(DATA / "vvadd" / "slow.csv")
     sizes_f = [int(r["size"])           for r in fast]
@@ -243,43 +371,110 @@ def plot_vvadd():
     sizes_s = [int(r["size"])           for r in slow]
     t_s_us  = [int(r["kernel_time_us"]) for r in slow]
 
-    # Chip-wide bytes for one vvadd (c = a + b): 2 reads + 1 write = 3×N×4 B
-    # per pod; ×8 pods (shared data) → 24×N bytes touched chip-wide.
-    def bw_GBs(size, t_us):
-        return [24 * s / (t * 1e3) for s, t in zip(size, t_us)]
+    bw_regular = vvadd_chipwide_GBs(sizes_f, t_f_us)
+    # High bandwidth: divide slow time by 32 (sim32bw projection) before
+    # computing throughput.  Equivalent to scaling raw-slow BW by ×32.
+    t_hibw_us  = [t / 32 for t in t_s_us]
+    bw_hibw    = vvadd_chipwide_GBs(sizes_s, t_hibw_us)
 
-    bw_regular = bw_GBs(sizes_f, t_f_us)
-    # High-bandwidth = slow with the sim32bw projection (×32 throughput).
-    bw_hibw    = [b * 32 for b in bw_GBs(sizes_s, t_s_us)]
+    def make_size_axis(ax):
+        ax.set_xscale("log", base=2)
+        ax.set_xticks(sorted(set(sizes_f) | set(sizes_s)))
+        ax.xaxis.set_major_formatter(mticker.FuncFormatter(
+            lambda x, _: f"{int(x)//1024}K" if x < 1<<20 else f"{int(x)//(1<<20)}M"))
+        ax.set_xlabel("Vector Size")
 
-    # Bandwidth chart
-    fig, ax = plt.subplots(figsize=SIZE_DEFAULT)
-    ax.plot(sizes_f, bw_regular, "o-", color=COLOR_REGULAR, label="regular")
-    ax.plot(sizes_s, bw_hibw,    "s-", color=COLOR_HIBW,    label="high bandwidth")
-    ax.set_xscale("log", base=2)
-    ax.set_xticks(sorted(set(sizes_f) | set(sizes_s)))
-    ax.xaxis.set_major_formatter(mticker.FuncFormatter(
-        lambda x, _: f"{int(x)//1024}K" if x < 1<<20 else f"{int(x)//(1<<20)}M"))
-    ax.set_xlabel("Vector Size")
-    ax.set_ylabel("Bandwidth (GB/s)")
-    ax.legend(loc="best", frameon=False)
-    ax.set_title("vvadd performance")
-    save(fig, "vvadd_bw")
+    for size, suffix in ((SIZE_DEFAULT, ""), (SIZE_WIDE, "_wide")):
+        # Bandwidth
+        fig, ax = plt.subplots(figsize=size)
+        ax.plot(sizes_f, bw_regular, "o-", color=COLOR_REGULAR, label="regular")
+        ax.plot(sizes_s, bw_hibw,    "s-", color=COLOR_HIBW,    label="high bandwidth")
+        make_size_axis(ax)
+        ax.set_ylabel("Bandwidth (GB/s)")
+        ax.legend(loc="best", frameon=False)
+        ax.set_title("vvadd performance")
+        save(fig, f"vvadd_bw{suffix}")
 
-    # Raw time chart (also useful as a sanity diagnostic).
-    fig, ax = plt.subplots(figsize=SIZE_DEFAULT)
-    ax.plot(sizes_f, t_f_us, "o-", color=COLOR_REGULAR, label="regular")
-    ax.plot(sizes_s, t_s_us, "s-", color=COLOR_HIBW,    label="high bandwidth (raw slow)")
-    ax.set_xscale("log", base=2)
-    ax.set_yscale("log")
-    ax.set_xticks(sorted(set(sizes_f) | set(sizes_s)))
-    ax.xaxis.set_major_formatter(mticker.FuncFormatter(
-        lambda x, _: f"{int(x)//1024}K" if x < 1<<20 else f"{int(x)//(1<<20)}M"))
-    ax.set_xlabel("Vector Size")
-    ax.set_ylabel("Time (µs)")
-    ax.legend(loc="best", frameon=False)
-    ax.set_title("vvadd performance")
-    save(fig, "vvadd_time")
+        # Time/array (kernel time vs array size).  Plot the high-bandwidth
+        # PROJECTED time (slow_t / 32), not raw slow.
+        fig, ax = plt.subplots(figsize=size)
+        ax.plot(sizes_f, t_f_us,    "o-", color=COLOR_REGULAR, label="regular")
+        ax.plot(sizes_s, t_hibw_us, "s-", color=COLOR_HIBW,    label="high bandwidth")
+        make_size_axis(ax)
+        ax.set_yscale("log")
+        ax.set_ylabel("Time/array (µs)")
+        ax.legend(loc="best", frameon=False)
+        ax.set_title("vvadd performance")
+        save(fig, f"vvadd_time{suffix}")
+
+    # Stats for the markdown.
+    return {
+        "peak_bw_regular": max(bw_regular),
+        "peak_bw_hibw":    max(bw_hibw),
+        "speedup_at_max_size": bw_hibw[-1] / bw_regular[-1],
+        "size_at_peak_regular": sizes_f[bw_regular.index(max(bw_regular))],
+        "size_at_peak_hibw":    sizes_s[bw_hibw.index(max(bw_hibw))],
+    }
+
+
+# ─── Roofline ────────────────────────────────────────────────────────────────
+def plot_roofline():
+    """Chip-wide roofline with regular + high-bandwidth scatter points and
+    BW/compute envelopes.  Slow CSV's bw/gops are already ×32-projected per
+    pod (run_experiments.sh); we apply the ×8 chip-wide multiplier here."""
+    fast = load_roofline(slow=False)
+    slow = load_roofline(slow=True)
+
+    def points(rows):
+        ai, bw, gops = [], [], []
+        for r in rows:
+            a = float(r["arith_intensity_ops_per_byte"])
+            b = bw_chipwide(r)
+            g = gops_chipwide(r)
+            if b is None or g is None:
+                continue
+            ai.append(a); bw.append(b); gops.append(g)
+        return ai, bw, gops
+
+    ai_f, bw_f, gops_f = points(fast)
+    ai_s, bw_s, gops_s = points(slow)
+
+    # Envelopes:  GOps = min(bw_peak * AI, compute_peak)
+    bw_peak_reg = max(bw_f)
+    bw_peak_hib = max(bw_s)
+    cmp_peak_reg = max(gops_f)
+    cmp_peak_hib = max(gops_s)
+
+    import numpy as np
+    ai_grid = np.logspace(-1, 5, 200, base=2)
+    env_reg = np.minimum(bw_peak_reg * ai_grid, cmp_peak_reg)
+    env_hib = np.minimum(bw_peak_hib * ai_grid, cmp_peak_hib)
+
+    for size, suffix in ((SIZE_DEFAULT, ""), (SIZE_WIDE, "_wide")):
+        fig, ax = plt.subplots(figsize=size)
+        ax.plot(ai_grid, env_reg, "--", color=COLOR_REGULAR, alpha=0.7,
+                linewidth=2, label=f"regular envelope (BW={bw_peak_reg:.1f} GB/s, "
+                                   f"compute={cmp_peak_reg:.0f} GOPS)")
+        ax.plot(ai_grid, env_hib, "--", color=COLOR_HIBW, alpha=0.7,
+                linewidth=2, label=f"high bandwidth envelope (BW={bw_peak_hib:.1f} GB/s, "
+                                   f"compute={cmp_peak_hib:.0f} GOPS)")
+        ax.scatter(ai_f, gops_f, color=COLOR_REGULAR, s=60, zorder=5, label="regular")
+        ax.scatter(ai_s, gops_s, color=COLOR_HIBW,    s=60, marker="s", zorder=5,
+                   label="high bandwidth")
+        ax.set_xscale("log"); ax.set_yscale("log")
+        ax.set_xlabel("Arithmetic Intensity (ops/byte)")
+        ax.set_ylabel("GOPS")
+        ax.legend(loc="lower right", frameon=False)
+        ax.set_title("Roofline (chip-wide, all 1024 cores)")
+        save(fig, f"roofline{suffix}")
+
+    return {
+        "bw_peak_regular":   bw_peak_reg,
+        "bw_peak_hibw":      bw_peak_hib,
+        "compute_peak_regular": cmp_peak_reg,
+        "compute_peak_hibw":    cmp_peak_hib,
+        "bw_speedup":        bw_peak_hib / bw_peak_reg,
+    }
 
 
 def main():
@@ -287,8 +482,18 @@ def main():
     plot_1d_best()
     plot_1d_all_cpg()
     plot_1d_vs_2d()
-    plot_vvadd()
+    plot_sw_effect_hibw()
+    vv_stats = plot_vvadd()
+    rl_stats = plot_roofline()
     print(f"Wrote charts to {OUT}/")
+    print()
+    print("=== vvadd stats ===")
+    for k, v in vv_stats.items():
+        print(f"  {k:30s} {v}")
+    print()
+    print("=== roofline stats ===")
+    for k, v in rl_stats.items():
+        print(f"  {k:30s} {v}")
 
 
 if __name__ == "__main__":
