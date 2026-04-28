@@ -128,7 +128,7 @@ Available experiments (see EXPERIMENTS.md):
   sw1d_preflight      sw/1d suspect-row probes, repeat=1 (use preflight.sh)
   sw2d_seqlen_fast    sw/2d seq_len sweep, fast clock              ( 6 runs)
   sw2d_seqlen_slow    sw/2d seq_len sweep, slow clock              ( 6 runs)
-  nw_seqlen_fast      nw/{baseline,naive,efficient} seq_len, fast  (12 runs)
+  nw_seqlen_fast      nw/{baseline,naive,efficient} seq_len, fast  ( 9 runs)
   radix_sort_fast     radix_sort SIZE × num_arr sweep, fast        (18 runs)
   radix_sort_slow     radix_sort, slow clock                       (18 runs)
   roofline_fast       dummy/roofline OPS sweep, fast               (32 runs)

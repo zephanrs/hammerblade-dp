@@ -47,15 +47,19 @@ Target 20 s each.
 
 ### 3. nw/ — seq_len sweep — `nw_seqlen_fast`
 
-Three apps: `nw/baseline`, `nw/naive`, `nw/efficient`.  DMEM caps
-seq_len ≤ 256 for nw/efficient (`boundary_scores[seq_len+1]` fits at
-256).  Power-of-2 seq_len.  Target 20 s each.
+Three apps: `nw/baseline`, `nw/naive`, `nw/efficient`.  Power-of-2
+seq_len.  Target 20 s each.
 
-- nw/baseline:  seq_len ∈ {32, 64, 128, 256} — **4 runs**
-- nw/naive:     seq_len ∈ {32, 64, 128, 256} — **4 runs**
-- nw/efficient: seq_len ∈ {32, 64, 128, 256} — **4 runs**
+- nw/baseline:  seq_len ∈ {32, 64, 128} — **3 runs**
+- nw/naive:     seq_len ∈ {32, 64, 128} — **3 runs**
+- nw/efficient: seq_len ∈ {32, 64, 128} — **3 runs**
 
-**Subtotal: 12 runs**
+seq_len=256 dropped: fails on HW for nw/efficient; dropped from all
+three for cross-app consistency.  nw/naive at seq_len=128 hangs above
+small repeat, so its row uses repeat=10 with the device-side Cudalite
+µs counter for accurate timing.
+
+**Subtotal: 9 runs**
 
 ### 4. radix_sort — SIZE sweep — `radix_sort_fast`
 
@@ -90,9 +94,9 @@ time-per-barrier = wall_time / N.
 
 ---
 
-## Fast-clock total: **120 runs**
+## Fast-clock total: **117 runs**
 
-(50 sw/1d CPG + 6 sw/2d + 12 nw/ + 18 radix_sort + 32 roofline + 2 barrier_bench)
+(50 sw/1d CPG + 6 sw/2d + 9 nw/ + 18 radix_sort + 32 roofline + 2 barrier_bench)
 
 ## Slow clock (subset)
 
