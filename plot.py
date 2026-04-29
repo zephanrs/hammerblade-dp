@@ -673,12 +673,13 @@ def plot_arch_compare():
     HB_AREA_MM2 = 38.875
     HB_NODE     = "14/16 nm"
 
+    # Line-1 = implementation/product, line-2 = HW type (in parens), line-3 = node.
     bars = [
-        ("NVIDIA A100",           "GPU", "7 nm",      1940,         826.0),
-        ("NVIDIA V100",           "GPU", "12/16 nm",   162,         815.0),
-        ("Intel Xeon Skylake-SP", "CPU", "14 nm",      734,        1396.0),
-        ("HammerBlade",           "2D",  HB_NODE,     hb_2d_gcups, HB_AREA_MM2),
-        ("HammerBlade",           "1D",  HB_NODE,     hb_1d_gcups, HB_AREA_MM2),
+        ("NVIDIA A100",           "GPU",         "7 nm",      1940,         826.0),
+        ("NVIDIA V100",           "GPU",         "12/16 nm",   162,         815.0),
+        ("Intel Xeon Skylake-SP", "CPU",         "14 nm",      734,        1396.0),
+        ("2D",                    "HammerBlade", HB_NODE,     hb_2d_gcups, HB_AREA_MM2),
+        ("1D",                    "HammerBlade", HB_NODE,     hb_1d_gcups, HB_AREA_MM2),
     ]
     eff = [g / a for (_, _, _, g, a) in bars]
     labels = [f"{proc}\n({kind})\n{node}" for (proc, kind, node, _, _) in bars]
