@@ -1,0 +1,49 @@
+[18:08:28] Starting experiment run at Tue Apr 28 18:08:28 PDT 2026
+[18:08:28] Experiment  : barrier_fast
+[18:08:28] CSV output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260428_180828.csv
+[18:08:28] Log output  : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260428_180828.log
+[18:08:28] Apps to run : dummy/barrier_bench
+[18:08:28] UNIT_ID     : 2
+[18:08:28] Speed label : fast
+[18:08:28] Timeout     : 30s per test
+
+[18:08:28] Pre-flight reset (may prompt for sudo password)
+sudo /cluster_src/reset_half/hb_board_v0.5_init.bin 2
+[BSG INFO] checking if init full software directory is valid
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 24.4375 degree C
+Remote 1 temperature is 26.1250 degree C
+Remote 2 temperature is 26.5000 degree C
+[BSG INFO] pressing soft reset button
+[BSG INFO] performing reset full
+Local  0 temperature is 24.4375 degree C
+Remote 1 temperature is 26.1875 degree C
+Remote 2 temperature is 26.5625 degree C
+[BSG INFO] cleaning init full software
+[BSG INFO] starting init full software
+[BSG INFO] checking if init full software still running
+[BSG INFO] performing refresh sdr full
+[BSG INFO] finishing init full software
+[BSG INFO] checking if init full software passed
+[BSG INFO] performing refresh sdr init full
+[BSG INFO] cleaning init full software
+[BSG INFO] initialization succeeded
+[18:08:42] reset complete
+
+
+[18:08:42] [0;36m=== dummy/barrier_bench ===[0m
+[18:08:42]   Regenerating test directories for dummy/barrier_bench...
+[18:08:42]   Found 2 test(s)
+[18:09:03] [0;32mOK[0m      dummy/barrier_bench / barrier_bench_default__n_15000000  time=19.993376s  gcups=N/A
+[18:09:11] [1;33mSHORT[0m   dummy/barrier_bench / barrier_bench_linear__n_15000000  time=6.333248s  gcups=N/A  (< 15s)
+
+
+[18:09:11] [0;36m=== Run complete ===[0m
+[18:09:11] Total tests    : 2
+[18:09:11] Results CSV    : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/results_20260428_180828.csv
+[18:09:11] Full log       : /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/run_20260428_180828.log
+[18:09:11] Passed         : 2
+[18:09:11] Failed/Timeout : 0
+
+[18:09:11] Mark this run as successful and archive to /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/success? [y/N] [18:09:44] [0;32mOK[0m  Archived results_20260428_180828.csv and run_20260428_180828.log to /home/zephans/bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/programs/results/success
