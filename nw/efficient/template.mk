@@ -18,6 +18,8 @@ TILE_GROUP_DIM_Y ?= $(tile-y)
 
 vpath %.c   $(APP_PATH)
 vpath %.cpp $(APP_PATH)
+# barriers/ lives at the repo root (two levels up from nw/efficient).
+vpath %.S   $(APP_PATH)/../../barriers
 
 # Test sources;
 TEST_SOURCES = main.cpp
@@ -56,9 +58,16 @@ ifdef repeat
 RISCV_CCPPFLAGS += -DINPUT_REPEAT_FACTOR=$(repeat)
 endif
 
-RISCV_TARGET_OBJECTS = kernel.rvo
+# Override the default barrier with our linear-wakeup implementation.
+# Linking linear_barrier.rvo before the BSG manycore archive makes the
+# linker resolve bsg_barrier_amoadd to our object and skip the archive copy.
+RISCV_TARGET_OBJECTS = kernel.rvo linear_barrier.rvo
 BSG_MANYCORE_KERNELS = main.riscv
 include $(EXAMPLES_PATH)/cuda/riscv.mk
+
+# .S → .rvo build rule (riscv.mk only ships %.rvo:%.c and %.rvo:%.cpp).
+%.rvo: %.S
+	$(_RISCV_GCC) $(RISCV_CFLAGS) $(RISCV_DEFINES) -D__ASSEMBLY__=1 $(RISCV_INCLUDES) -c $< -o $@ 2>&1 | tee $*.rvo.log
 
 
 # Execution args;
