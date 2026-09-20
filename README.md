@@ -1,13 +1,16 @@
 # hammerblade-dp
 
-This repository contains four applications:
+This repository contains several applications:
 
-- `1d`
-- `dynamic`
-- `2d`
-- `chaining`
+- `sw/` — Smith-Waterman variants: `1d`, `2d`, `banded`, `dynamic`, `scheduling`
+- `nw/` — Needleman-Wunsch variants: `baseline`, `naive`, `efficient`
+- `chaining/` — anchor chaining variants: `original`, `direct`, `tree`
+- `mm/` — matrix multiply (f32 and i32): `single`
 
-Use `make list-apps` to see the corresponding directories.
+Use `make list-apps` to see the directories wired up for native runs.
+
+`mm` targets the real hardware on the BSG cluster rather than the native or
+simulator flows below; see `mm/README.md` for that procedure.
 
 ## Native Runs
 
