@@ -1,6 +1,8 @@
 .PHONY: all
 all: generate
 
+include app_path.mk
+HB_HAMMERBENCH_PATH ?= $(abspath $(APP_PATH)/../../../..)
 
 include test_defs.mk
 
