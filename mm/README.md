@@ -30,17 +30,20 @@ exercising floating-point rounding rather than validating the mapping.
 
 ## Installing into the app tree
 
-**Symlink this directory into
-`bsg_bladerunner/bsg_replicant/examples/hb_hammerbench/apps/`, do not copy it.**
-`app_path.mk` derives `APP_PATH` from `git rev-parse --show-toplevel` of the
-containing repository, so a symlink resolves back to this repo and a copy
-resolves to `hb_hammerbench` and points `APP_PATH` at a directory that does not
-exist. Every other app in this repo works the same way.
+Nothing special: this app ships inside the repo, which is cloned whole into the
+cluster's app directory as the top-level README describes. `app_path.mk`
+derives `APP_PATH` from `git rev-parse --show-toplevel`, so it resolves
+correctly as long as `mm/single` sits inside a checkout of this repo.
 
 `template.mk` deliberately leaves `BSG_MACHINE_PATH` commented out, so the
 machine and platform come from `bsg_replicant/machine.mk` and `platform.mk`
 (`bigblade_pod_X4Y2_ruche_X16Y8_fpga`, `bigblade-fpga`). Re-check this after
-any stash or re-clone, otherwise the application hangs.
+any stash, checkout or re-clone, otherwise the application hangs — the same
+hot-patch caveat the top-level README gives for the other apps.
+
+`run_experiments.sh` does not cover `mm`: it dispatches a fixed registry of
+named experiments, and no entry maps to this app. Run `mm` by hand as below,
+or wire an entry into that registry.
 
 ## Running on hardware
 
@@ -48,7 +51,7 @@ Reset the unit first, coordinating with anyone else using it:
 
 ```sh
 cd /cluster_src/reset_half
-make reset UNIT_ID=<UNIT_ID>
+make reset UNIT_ID=2
 ```
 
 Then generate the test directories and run one:
@@ -57,7 +60,7 @@ Then generate the test directories and run one:
 cd <apps>/mm/single
 make generate
 cd m_32__n_32__k_32__dtype_f32
-make exec.log HB_MC_DEVICE_ID=<UNIT_ID>
+make exec.log HB_MC_DEVICE_ID=2
 ```
 
 A passing run ends with `BSG REGRESSION TEST PASSED`. The host library prints
@@ -70,7 +73,7 @@ Housekeeping:
   rerun `make generate` after editing `tests.mk` or `template.mk`.
 - If a run hangs or fails, kill it and redo the reset before running anything
   else.
-- `make cool_down UNIT_ID=<UNIT_ID>` when finishing up, or before leaving the
+- `make cool_down UNIT_ID=2` when finishing up, or before leaving the
   unit idle for more than an hour.
 
 ## What this is running on
