@@ -10,6 +10,7 @@
 /dummy/*/ops_*/
 /dummy/*/num-elems_*/
 /chaining/chain-len_*/
+/mm/*/m_*__n_*__k_*/
 /radix_sort/num-elems_*/
 
 # Native / intermediate build output

@@ -11,6 +11,7 @@ sw/2d/           Smith-Waterman, 2-D tile layout
 nw/naive/        Needleman-Wunsch, naive reference
 nw/baseline/     Needleman-Wunsch, baseline HammerBlade
 nw/efficient/    Needleman-Wunsch, optimized HammerBlade
+mm/single/       Matrix multiply, single-tile baseline (f32 / i32)
 dummy/roofline/  Synthetic roofline benchmark (sweeps OPS_PER_ELEM)
 common/          Shared host utilities (timing, repeat config)
 run_experiments.sh   Experiment runner → results/
