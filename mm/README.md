@@ -4,14 +4,22 @@ Matrix multiply, `C = A * B`, targeting the real ASIC on the BSG cluster.
 
 Variants:
 
-- `single` — tile (0,0) computes the whole product. This is the single-core
-  baseline everything else gets measured against.
+- `single` — tile (0,0) computes the whole product straight out of DRAM. The
+  baseline everything else is measured against.
+- `blocked` — tile (0,0) again, but each column panel of B is staged into the
+  4 KB scratchpad first, so the inner loop reads both operands locally.
 
 ## Parameters
 
-Each test directory is one compile-time configuration, named
-`m_<M>__n_<N>__k_<K>__dtype_<f32|i32>`. A is `M x K`, B is `K x N`, C is
-`M x N`, all row-major in DRAM.
+Each test directory is one compile-time configuration. `single` is named
+`m_<M>__n_<N>__k_<K>__dtype_<f32|i32>`; `blocked` adds a panel width,
+`m_<M>__n_<N>__k_<K>__bn_<BLK_N>__dtype_<...>`. A is `M x K`, B is `K x N`,
+C is `M x N`, all row-major in DRAM.
+
+`BLK_N` must divide `N`, and `K*BLK_N + BLK_N` words must fit the scratchpad
+budget, both enforced by `static_assert`. Widening the panel cuts A re-reads
+(A is swept once per panel) but costs scratchpad, so the panel narrows as K
+grows: `k=16 bn=16` is 272 words, `k=64 bn=8` is 520.
 
 `dtype` selects the element type through `ELEM_IS_FLOAT` and `elem.hpp`:
 
@@ -48,6 +56,34 @@ or wire an entry into that registry.
 that list against `hammer-sim`, which does not provide `bsg_pr_test_info`, so
 registering `mm` there would fail the build. `make sim APP=mm` is unavailable
 for the same reason; invoke the RTL flow directly, as below.
+
+## Why `blocked` exists
+
+Profiling `single` at 8x8x8 under RTL showed tile (0,0) spending ~61% of its
+cycles in `stall_depend_dram_load`. The instruction counts matched the design
+exactly (`fmul` 512 = M*N*K, `fadd` 448 = M*N*(K-1) confirming the k=0 peel,
+`remote_flw_dram` 576 = B + A, `remote_fsw_dram` 64 = M*N), but 576 remote
+loads at roughly 21 cycles each dominated everything. Those were nearly all
+vcache *hits*, not DRAM misses -- the cost was the network round trip, paid
+over and over to re-read a B matrix of 256 bytes.
+
+`single` had the right loop order for DRAM traffic and the wrong one for
+network traffic. `blocked` stages B once per panel and reads it locally
+(2 cycles) thereafter. Remote loads per run, counted offline:
+
+| shape | `single` | `blocked` | ratio |
+|---|---|---|---|
+| 8x8x8, bn=8 | 576 | 128 | 4.5x |
+| 16x16x16, bn=16 | 4352 | 512 | 8.5x |
+| 32x32x32, bn=16 | 33792 | 3072 | 11.0x |
+| 64x64x64, bn=8 | 266240 | 36864 | 7.2x |
+
+Both variants also now build with `-ffp-contract=fast`. The vanilla FPU is a
+single FMA datapath where `fadd` is `rs1*1.0+rs2` and `fmul` is `rs1*rs2+0.0`,
+so an uncontracted multiply-accumulate burns two full passes where one
+`fmadd.s` would do, at identical latency. Contraction is safe for the result
+check here because the operands are exactly-representable small integers, so
+the unrounded intermediate product cannot change the answer.
 
 ## Running under RTL simulation
 
