@@ -35,15 +35,42 @@ cluster's app directory as the top-level README describes. `app_path.mk`
 derives `APP_PATH` from `git rev-parse --show-toplevel`, so it resolves
 correctly as long as `mm/single` sits inside a checkout of this repo.
 
-`template.mk` deliberately leaves `BSG_MACHINE_PATH` commented out, so the
-machine and platform come from `bsg_replicant/machine.mk` and `platform.mk`
-(`bigblade_pod_X4Y2_ruche_X16Y8_fpga`, `bigblade-fpga`). Re-check this after
-any stash, checkout or re-clone, otherwise the application hangs — the same
-hot-patch caveat the top-level README gives for the other apps.
+`template.mk` assigns no `BSG_MACHINE_PATH` at all, like every other app on
+this branch, so hardware picks it up from the cluster environment
+(`bigblade_pod_X4Y2_ruche_X16Y8_fpga`, `bigblade-fpga`). There is no hot patch
+to redo after a stash or re-clone, and nothing to re-comment.
 
 `run_experiments.sh` does not cover `mm`: it dispatches a fixed registry of
 named experiments, and no entry maps to this app. Run `mm` by hand as below,
 or wire an entry into that registry.
+
+`mm` is deliberately absent from `applications.mk`. CI runs `make native` over
+that list against `hammer-sim`, which does not provide `bsg_pr_test_info`, so
+registering `mm` there would fail the build. `make sim APP=mm` is unavailable
+for the same reason; invoke the RTL flow directly, as below.
+
+## Running under RTL simulation
+
+RTL gives cycle counts and a PC histogram, which the microsecond wall-clock
+from silicon does not. Unlike hardware, it needs an explicit machine.
+
+```sh
+module load hammerblade
+cd <clone>/mm/single
+make generate
+make -C m_8__n_8__k_8__dtype_f32 profile.log \
+  BSG_MACHINE_PATH=$REPLICANT_PATH/machines/bigblade_pod_X1Y1_ruche_X16Y8_hbm_one_pseudo_channel
+```
+
+`profile.log` carries the cycle counts between `bsg_cuda_print_stat_kernel_start`
+and `_end`; `pc-histogram.log` shows where those cycles went, which is the
+quickest way to see whether the inner loop is stalling on DRAM or retiring
+multiply-accumulates.
+
+Keep to the small shapes here. `8x8x8` is 512 MACs and turns around quickly;
+`16x16x16` is 4096 and is about the practical ceiling for a quick iteration.
+The `32^3` and `64^3` shapes are sized for silicon and will take a long time
+under RTL.
 
 ## Running on hardware
 

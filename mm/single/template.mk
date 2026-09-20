@@ -15,10 +15,11 @@ endif
 
 tile-x?=16
 tile-y?=8
-# Real-hardware runs take the machine and platform from bsg_replicant
-# (machine.mk / platform.mk), so this override must stay commented out.
-# Uncomment it only for RTL simulation.
-# override BSG_MACHINE_PATH = $(REPLICANT_PATH)/machines/bigblade_pod_X1Y1_ruche_X16Y8_hbm_one_pseudo_channel
+# Real-hardware runs pick BSG_MACHINE_PATH from the cluster environment.
+# Do not assign it here: an override would defeat the command line and hang on
+# hardware. For RTL simulation pass a machine on the command line, e.g.
+#   make profile.log \
+#     BSG_MACHINE_PATH=$(REPLICANT_PATH)/machines/bigblade_pod_X1Y1_ruche_X16Y8_hbm_one_pseudo_channel
 include $(HB_HAMMERBENCH_PATH)/mk/environment.mk
 
 # number of pods participating in barrier;
