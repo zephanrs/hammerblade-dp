@@ -2,6 +2,8 @@
 
 Matrix multiply, `C = A * B`, targeting the real ASIC on the BSG cluster.
 
+See `PLAN.md` for the staged roadmap up to a full 2-D systolic array.
+
 Variants:
 
 - `single` — tile (0,0) computes the whole product straight out of DRAM. The
