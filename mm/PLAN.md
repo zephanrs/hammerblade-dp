@@ -143,7 +143,39 @@ k-chunk. Load A/B sub-blocks with `unrolled_load` so round trips overlap.
 `stall_depend_dram_load` does not fall roughly in proportion to the tile count,
 that is the reason, and it argues for going straight to stage 4.
 
-## Stage 4 — `mm/systolic` (built, awaiting RTL)
+## Stage 4 — `mm/systolic` (correct under RTL; slower than stage 3 so far)
+
+All ladder rungs pass — 1×1, 2×1, 1×2, 2×2, 4×2 — so the handshake, slot reuse
+and forward ordering are validated on hardware, which offline checking could
+not cover. DRAM loads land exactly on the ideal: 512 = M·K + K·N at 16³/4×2
+against `mm/parallel`'s 1536, with interior tiles loading nothing.
+
+**But it is currently slower than stage 3:** 2946 vs 2184 cycles at 8³/2×2,
+7952 vs 5749 at 16³/4×2.
+
+The stall trade was exactly one-for-one. `stall_depend_dram_seq_load` fell
+26.2% -> 9.2%, `stall_lr_aq` rose 1.1% -> 25.3%, and **total stall was
+unchanged at 38.8%**. What cost the runtime was instruction count:
+27498 -> 36946, +34%, or +2.3 instructions per MAC.
+
+Two causes, in order of size:
+
+1. **Compute per handshake is too small at these shapes.** Forwarding costs
+   `MB+NB` words per k step against `MB·NB` MACs. That ratio is 2.0 at 8³/2×2
+   and 2.7 at 16³/4×2 — at or below the "~2 means communication-bound"
+   threshold this plan set before any measurement. At 128³/16×8 it is 5.3. The
+   model predicted this; the small shapes RTL can run are structurally hostile
+   to the systolic design.
+2. **Un-unrolled forwarding loops (my omission).** The gather, A-forward and
+   B-forward loops ran every k step with no `bsg_unroll`, despite MB and NB
+   being compile-time constants — 1280 iterations of pure bookkeeping at
+   16³/4×2, which accounts for most of the `addi` +2771 and `bne` +1362.
+   Fixed; awaiting re-measurement.
+
+**The crossover cannot be validated under RTL.** The shape where systolic
+should win is 128³ on a full pod, and that is silicon-only. This is the
+sharpest limitation in the whole plan: the design is justified by a ratio we
+can only measure where we cannot run.
 
 Verified offline: values exact both dtypes, full coverage of C, **zero DRAM
 access from any interior tile**, and DRAM loads landing exactly on the ideal
@@ -262,7 +294,7 @@ reintroduces one artificially.
 | --- | --- | --- |
 | stationary operand | C (output-stationary) | A- or B-stationary: C would then move K times, the worst choice |
 | edge tiles | also compute | dedicating row 0 + column 0 as pure feeders costs 23 of 128 tiles (18%), worse than the ~12% edge imbalance it removes |
-| message granularity | one k step per message | batching KC steps cuts flag overhead but multiplies buffering and deepens fill; revisit if handshake cost shows up |
+| message granularity | one k step per message | batching KC steps cuts flag overhead but multiplies buffering and deepens fill. **Revisit now — the handshake cost showed up.** At 16³/4×2 the mailbox cost 1024 payload stores + 320 flag stores + ~450 `lr`/`lr_aq` to save 1024 remote loads: a bad trade. Batching over KC amortizes the flags and waits by KC× at KC× the inflow buffer. |
 | A delivery | store-and-forward | network multicast along the row — no hardware support, and store-and-forward keeps the credit scheme simple |
 
 **Known imbalance.** `x == 0` tiles additionally load `MB·K` words of A and

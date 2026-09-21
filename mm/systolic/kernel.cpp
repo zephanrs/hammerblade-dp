@@ -101,6 +101,7 @@ extern "C" int kernel(elem_t* A, elem_t* B, elem_t* C, int pod_id)
   const int row0 = y * MB;
   const int col0 = x * NB;
 
+  bsg_unroll(8)
   for (int t = 0; t < (MB * NB); t++) {
     c_blk[t] = (elem_t)0;
   }
@@ -128,6 +129,7 @@ extern "C" int kernel(elem_t* A, elem_t* B, elem_t* C, int pod_id)
       const elem_t* b;
 
       if (feeds_a) {
+        bsg_unroll(8)
         for (int i = 0; i < MB; i++) {
           a_loc[i] = a_chunk[(i * BLK_K) + kk];
         }
@@ -145,6 +147,7 @@ extern "C" int kernel(elem_t* A, elem_t* B, elem_t* C, int pod_id)
       if (fwd_a) {
         wait_flag(&mb.a_credit[s]);
         mb.a_credit[s] = 0;
+        bsg_unroll(8)
         for (int i = 0; i < MB; i++) {
           east->a[s][i] = a[i];
         }
@@ -164,6 +167,7 @@ extern "C" int kernel(elem_t* A, elem_t* B, elem_t* C, int pod_id)
       if (fwd_b) {
         wait_flag(&mb.b_credit[s]);
         mb.b_credit[s] = 0;
+        bsg_unroll(8)
         for (int j = 0; j < NB; j++) {
           south->b[s][j] = b[j];
         }
