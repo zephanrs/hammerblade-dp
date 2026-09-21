@@ -20,3 +20,7 @@ TESTS += $(call test-name,16,16,16,16,16,4,2,f32)
 # full pod. kb=8 not 16: at kb=16 the budget lands exactly on 768 with no
 # room for the stack.          128+128+64+64+128+64 = 576 words
 TESTS += $(call test-name,128,128,128,8,4,16,8,f32)
+
+# Crossover point, matched to regblock's 64^3/8x4 row (same kb=8) so the two
+# differ only in dataflow.      128+128+64+64+128+64 = 576 words
+TESTS += $(call test-name,64,64,64,8,4,8,4,f32)

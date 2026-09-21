@@ -33,3 +33,10 @@ TESTS += $(call test-name,128,128,128,16,16,8,i32)
 #   kb=4 -> 4 chunks,  scratch 32+32+16  =  80 words
 TESTS += $(call test-name,16,16,16,8,4,2,f32)
 TESTS += $(call test-name,16,16,16,4,4,2,f32)
+
+# Crossover point at 1/8 the simulation cost of 128^3/16x8. What drives the
+# systolic trade is MB*NB (compute per handshake), not matrix size: 8x4 tiles
+# on 64^3 gives MB=16 NB=8, the same 5.3:1 ratio as 16x8 on 128^3, with 32
+# tiles instead of 128. kb=8 to match sysreg, which cannot afford kb=16.
+#   scratch 128 + 128 + 64 = 320 words
+TESTS += $(call test-name,64,64,64,8,8,4,f32)
