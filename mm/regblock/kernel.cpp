@@ -95,10 +95,14 @@ extern "C" int kernel(elem_t* A, elem_t* B, elem_t* C, int pod_id)
           const elem_t b2 = bb[2];
           const elem_t b3 = bb[3];
 
-          c00 += a0 * b0;  c01 += a0 * b1;  c02 += a0 * b2;  c03 += a0 * b3;
-          c10 += a1 * b0;  c11 += a1 * b1;  c12 += a1 * b2;  c13 += a1 * b3;
-          c20 += a2 * b0;  c21 += a2 * b1;  c22 += a2 * b2;  c23 += a2 * b3;
-          c30 += a3 * b0;  c31 += a3 * b1;  c32 += a3 * b2;  c33 += a3 * b3;
+          c00 = elem_mac(a0, b0, c00);  c01 = elem_mac(a0, b1, c01);
+          c02 = elem_mac(a0, b2, c02);  c03 = elem_mac(a0, b3, c03);
+          c10 = elem_mac(a1, b0, c10);  c11 = elem_mac(a1, b1, c11);
+          c12 = elem_mac(a1, b2, c12);  c13 = elem_mac(a1, b3, c13);
+          c20 = elem_mac(a2, b0, c20);  c21 = elem_mac(a2, b1, c21);
+          c22 = elem_mac(a2, b2, c22);  c23 = elem_mac(a2, b3, c23);
+          c30 = elem_mac(a3, b0, c30);  c31 = elem_mac(a3, b1, c31);
+          c32 = elem_mac(a3, b2, c32);  c33 = elem_mac(a3, b3, c33);
         }
 
         cb[0]        = c00;  cb[1]        = c01;  cb[2]        = c02;  cb[3]        = c03;
