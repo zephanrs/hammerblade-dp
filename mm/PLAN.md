@@ -342,6 +342,57 @@ The thesis also applies the runahead copy of section 2.4.4 (all loads, compiler
 fence, then all stores). The repo's `unrolled_load` already does exactly this,
 so staging inherits it.
 
+## Measured results, 16x16x16 on a 4x2 group, f32
+
+| variant | Runtime | Instrs | Total Stall | note |
+| --- | --- | --- | --- | --- |
+| `regblock` + FMA | **3985** | 12818 | 18416 | best so far |
+| `regblock` | 4267 | 17426 | 16089 | |
+| `parallel` | 5749 | 27498 | 17649 | |
+| `systolic` (post-unroll) | 6617 | 32848 | 18402 | no reg tile, no FMA |
+| `systolic` (pre-unroll) | 7952 | 36946 | 24504 | |
+
+`systolic` carries neither of the two big wins yet, per the frozen-baseline
+convention, so its position here is not a like-for-like verdict.
+
+### Forced FMA works
+
+`__builtin_fmaf` produced `fmadd = 4096` with `fadd`/`fmul` gone entirely --
+so the hardware FMA is reachable, `-ffp-contract=fast` simply never fused.
+Instructions fell 26%, but runtime only 6.6%, because `Total Stall` *rose*
+16089 -> 18416: removing compute makes the core reach its load dependencies
+sooner. Expect this pattern to repeat -- instruction-count wins convert to
+cycle wins at well under 1:1 while the kernel is latency-bound.
+
+### Chunk double-buffering is refuted -- do not build it
+
+Sweeping `BLK_K` at fixed total work (4096 MACs, 1/2/4 chunks):
+
+| `BLK_K` | chunks | Runtime | `stall_depend_dram_seq_load` |
+| --- | --- | --- | --- |
+| 16 | 1 | 3985 | 13917 |
+| 8 | 2 | 4487 | 18322 |
+| 4 | 4 | 5109 | 22864 |
+
+Monotonically worse, and the staging stall *grows* with more chunks. The cause
+is burst depth: `unrolled_load` issues `BLK_K` loads before consuming any, so
+`BLK_K=16` keeps 16 in flight against the core's 31-deep capacity while
+`BLK_K=4` manages 4. Fewer, larger chunks hide more latency.
+
+Chunk double-buffering needs two chunks resident, hence smaller chunks, hence
+strictly worse. The lever for the staging stall is the opposite: **larger
+bursts**, and more compute per staged word -- which means larger MB*NB per
+tile, which means larger matrices, not more buffering.
+
+### The recurring limit
+
+Every result here is dominated by shape. At 16^3 on 4x2 a tile does 512 MACs
+against 192 remote loads, 2.7:1. At 128^3 on 16x8 it is 16384 against 3072,
+5.3:1. The systolic handshake, the staging stall and the FMA payoff all
+amortize in the direction we cannot currently run. **The 128^3 / 16x8 run is
+now the single highest-value measurement left** -- it is the only one that can
+settle whether systolic beats data-parallel at all.
+
 ## Stage 5 — optimizations on the systolic array
 
 In rough order of expected value:
