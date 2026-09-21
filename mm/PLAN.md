@@ -56,11 +56,33 @@ kernel become FP-issue-bound? If `stall_depend_dram_load` collapses and core
 utilization climbs, the single-tile story is finished and parallelism is the
 only remaining lever.
 
-## Stage 3 — `mm/parallel` (built, awaiting measurement)
+## Stage 3 — `mm/parallel` (passing under RTL)
 
 Verified offline: values exact both dtypes, full coverage of C with no gaps
 or overlaps across 10 tile/shape configurations, scratchpad within budget,
 all four static_asserts confirmed firing.
+
+**Measured, 8x8x8 f32 on a 2x2 group:** 2184 cycles against 19973 for
+`mm/single` at the same shape, a 9.1x improvement; core utilization 0.43% ->
+48.78%. Counters matched the design exactly: 256 remote loads = 4 tiles x
+(MB*KB + KB*NB), `fmul` 512 = M*N*K, `remote_fsw_dram` 64 = M*N.
+
+Three findings:
+
+1. **No FMA contraction.** `fadd` 512 *and* `fmul` 512 -- every
+   multiply-accumulate is still two FP instructions, so `-ffp-contract=fast`
+   did not take. The hardware has `eFMADD` (confirmed in `fpu_float_fma.sv`),
+   so this is a toolchain question, not an ISA one. Open.
+2. **42% of cycles in `stall_depend_dram_seq_load`**, but mostly a shape
+   artifact: at 8^3 on 4 tiles each tile does 128 MACs against 64 remote loads,
+   2:1, with nothing to hide latency behind. The staging bursts (BLK_K=8,
+   NB=4) are also too short to pipeline. At 128^3 on 16x8 the ratio is 5.3:1.
+   Re-measure at 16^3 and up before drawing conclusions.
+3. **Local FP memory traffic exceeds FP arithmetic**: `local_flw` 832 +
+   `local_fsw` 768 = 1600 against 1024 FP ops. C is being loaded and stored
+   from scratchpad on every single MAC. This is the register-blocking
+   opportunity, and it is larger than expected -- see stage 5, where it should
+   be promoted.
 
 **Idea.** Tile the output across all 128 tiles. No inter-tile communication at
 all — just the existing entry/exit barriers.
@@ -210,12 +232,15 @@ per-tile before trying to fix.
 
 In rough order of expected value:
 
-1. **Double-buffered inflow.** Receive k+1 while computing k. Directly targets
+1. **Register-blocked inner kernel.** *Promoted to first on stage 3 evidence:*
+   at 8³ the kernel issued 1600 local FP loads/stores against 1024 FP
+   arithmetic ops, because `c[j] +=` round-trips scratchpad on every MAC. With
+   32 FP registers a 4×4 C sub-tile lives entirely in registers — 16 for C, 4
+   for a, 4 for b — giving 16 FMAs per 8 loads and no scratchpad traffic for C
+   in the inner loop. Tile the MB×NB block into 4×4 sub-tiles. This applies to
+   stage 3 as much as stage 4.
+2. **Double-buffered inflow.** Receive k+1 while computing k. Directly targets
    the ~19% communication overhead.
-2. **Register-blocked inner kernel.** With 32 FP registers, a 4×4 C sub-tile
-   lives entirely in registers: 16 for C, 4 for a, 4 for b. 16 FMAs per 8
-   loads, and no scratchpad traffic for C in the inner loop. Tile the MB×NB
-   block into 4×4 sub-tiles.
 3. **icache discipline.** Check the unrolled body against the 1024-instruction
    limit. Keep `b[0..NB)` in registers across the i loop rather than unrolling
    both dimensions.
@@ -255,9 +280,12 @@ Per variant, per shape, both dtypes:
 
 ## Open questions
 
-- Does stage 2 become FP-issue-bound, or is there still remote-load stall?
-- Does the toolchain actually emit `fmadd.s` with `-ffp-contract=fast`, or does
-  the vanilla FPU not expose it through the compiler?
+- ~~Does the toolchain emit `fmadd.s` with `-ffp-contract=fast`?~~ **No** — at
+  8³ stage 3 showed `fadd` 512 and `fmul` 512, one of each per MAC. The
+  hardware supports it, so the question is now *why* the compiler will not
+  emit it: is the flag reaching the RISC-V compile at all, is it being
+  overridden by a later include, or does the backend need `__builtin_fmaf`?
+- Does the kernel become FP-issue-bound once C lives in registers?
 - Do 128 tiles reading overlapping A lines serialize in the vcache in stage 3?
 - What is the real cost of a mailbox hop under load, versus the 2 cycles/hop + 4
   the TRM quotes?
