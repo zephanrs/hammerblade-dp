@@ -457,6 +457,53 @@ operands compete with pointers and loop counters in the 32 GPRs, whereas f32
 has a dedicated 32-entry FP register file. The register-tiled kernel is
 viable in float only.
 
+## VERDICT — the crossover does not happen
+
+64x64x64 on an 8x4 tile group, f32, **matched inner loops** (both carry the 4x4
+register tile and forced FMA, so dataflow is the only variable):
+
+| | `regblock` | `sysreg` | |
+| --- | --- | --- | --- |
+| DRAM loads | 49152 | **8192** | 6x fewer |
+| memory stall (`dram_seq` + `remote_req`) | 606926 | **98580** | 6x less |
+| mailbox stall (`lr_aq`) | 16724 | **727558** | 43x more |
+| Instructions | 665511 | 795141 | |
+| **Runtime** | **41990** | 55427 | **1.32x slower** |
+
+Raising compute per handshake 4x (MB*NB 32 -> 128) did **not** help: systolic
+lost 1.25x at the low ratio and 1.32x at the high one. The pre-registered
+decision rule said that outcome means output-stationary systolic is wrong for
+this machine.
+
+### The mechanism
+
+The dataflow did exactly what it promised -- it removed 6x of memory stall --
+and then added **more mailbox stall than the memory stall it removed**.
+
+Data-parallel tiles stall on DRAM *concurrently*: the redundant traffic is
+wasteful but parallel, and at these sizes the machine has bandwidth to spare,
+so the waste is nearly free. A systolic chain is traffic-optimal but converts
+that into a serial dependency -- one edge tile staging from DRAM stalls
+everyone downstream of it.
+
+### A second, structural cost
+
+Message windows and staging chunks compete for the same 4 KB. `BLK_C` is
+capped by the scratchpad, so `sysreg`'s register tile amortises over 4 k steps
+where `regblock`'s amortises over 8-16: **1.23 vs 0.95 scratchpad ops per
+MAC**. The dataflow choice forces a worse inner loop. That is not an
+implementation shortfall to be tuned away; it is a resource conflict inherent
+to running both techniques on a 4 KB scratchpad.
+
+### What would change the answer
+
+- A machine with more scratchpad per tile, so windows and staging stop
+  competing.
+- A cheaper handshake -- the cost here is waiting on a producer, not the
+  network itself (`stall_remote_req` is only 0.82% in `sysreg`).
+- A regime where DRAM bandwidth is actually saturated. At 64^3 on 32 tiles it
+  is not, which is precisely why redundant loads are affordable.
+
 ## Stage 5 — optimizations on the systolic array
 
 In rough order of expected value:
