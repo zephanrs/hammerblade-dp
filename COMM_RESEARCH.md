@@ -25,10 +25,21 @@ More than half of all core-cycles are spent waiting on a hand-rolled
 full/empty handshake. This is the number that motivates hardware support.
 
 **And the machine is not bandwidth-limited.** At 256^3 on a full pod, DRAM
-utilization is **16.19%** while `stall_remote_req` -- cores waiting to *issue*
-a request -- is **22.25%**. There is roughly 6x bandwidth headroom the cores
-cannot reach. The limiting resource is request issue and synchronization, not
-memory.
+utilization is **16.19%** while `stall_remote_req` is **22.25%**. There is
+roughly 6x bandwidth headroom the cores cannot reach.
+
+Traced in the RTL, `stall_remote_req` asserts when an ID-stage remote memory
+op meets `remote_req_available == 0`: the core's outbound request FIFO
+(`fwd_fifo_els_p` entries, a handful) has no free slot. In `network_tx.sv`,
+`remote_req_credit_o = out_credit_or_ready_i` -- the slot frees when **the
+mesh accepts the packet**, not when the destination answers. So this is
+**link contention**, not memory latency.
+
+The end-to-end outstanding-packet counter, which is usually assumed to be the
+limit, is a *separate* signal (`stall_remote_credit`) and sits at **0.07%**.
+Consequence: deeper prefetching cannot help -- the core already cannot issue
+and is not short of outstanding-request slots. The levers are fewer requests
+and shorter routes.
 
 ---
 
@@ -41,13 +52,23 @@ dataflow differs.**
 | 128^3, full pod | data-parallel | systolic |
 | --- | --- | --- |
 | DRAM loads | 524,258 | **32,768** (16x fewer) |
-| memory stall | **51.5%** | 5.2% |
-| handshake stall | 6.6% | **52.6%** |
+| cannot inject (`remote_req`) | 21.95% | **1.81%** |
+| waiting for data (`dram_seq`) | 29.53% | **3.36%** |
+| handshake (`lr_aq`) | 6.58% | **52.62%** |
+| **total stall** | 61.82% | **58.19%** |
+| instructions | 5,550,621 | **6,114,071** (+10%) |
 | **runtime** | **117,416** | **118,367** |
 
-The systolic array did exactly what it promised -- 16x less DRAM traffic,
-memory stall down 10x -- and gave all of it back in synchronization. **0.8%
-apart.**
+**Systolic actually stalls less overall.** It loses the tie on *instruction
+count*, not on waiting: mailbox bookkeeping plus a register tile forced to
+amortise over a 4-step window instead of 16, because message windows and
+staging buffers compete for the same 4 KB.
+
+Removing that handicap would save an estimated 656,000 instructions (its 0.938
+scratchpad loads per MAC moving toward the data-parallel kernel's 0.625)
+against a 563,000 excess. **Fixed-block systolic would plausibly win
+outright** -- which makes this a live hypothesis with a specific next
+experiment, not a closed negative result.
 
 **Interpretation for the paper.** Data-parallel tiles stall on memory
 *concurrently*; a systolic chain converts those stalls into a *serial*
@@ -67,9 +88,11 @@ traffic optimality, remove the serialization.
 | data-parallel (long-haul to column caches) | **22.25%** |
 | systolic (nearest-neighbour) | **1.81%** |
 
-A 12x difference in injection stall for traffic of comparable volume. Distance
-and destination class, not byte count, determine contention. Any cost model
-that counts only bytes moved will mispredict on this machine.
+A 12x difference in injection stall for traffic of comparable volume. The
+mechanism is link occupancy: a long-haul packet holds more links for more
+cycles, so the mesh drains it slower and the sender's outbound FIFO backs up.
+Distance and route, not byte count, determine contention. Any cost model that
+counts only bytes moved will mispredict on this machine.
 
 ---
 
