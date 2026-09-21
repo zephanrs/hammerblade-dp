@@ -137,15 +137,11 @@ extern "C" int kernel(elem_t* A, elem_t* B, elem_t* C, int pod_id)
         a = mb.a[s];
       }
 
-      if (feeds_b) {
-        b = &b_chunk[kk * NB];
-      } else {
-        wait_flag(&mb.b_full[s]);
-        b = mb.b[s];
-      }
-
-      // Forward before computing, so the downstream tile can start its own
-      // step while this one is still doing its MB*NB multiply-accumulates.
+      // Forward A the moment it is in hand, before touching B at all. If this
+      // waited for B first, a tile holding A but blocked on B would stop
+      // forwarding A east -- so a DRAM bubble at a B feeder (y==0) would
+      // propagate sideways into the A flow. Forwarding costs only the credit
+      // wait, which is independent of B.
       if (fwd_a) {
         wait_flag(&mb.a_credit[s]);
         mb.a_credit[s] = 0;
@@ -155,6 +151,16 @@ extern "C" int kernel(elem_t* A, elem_t* B, elem_t* C, int pod_id)
         asm volatile("" ::: "memory");
         east->a_full[s] = 1;
       }
+
+      if (feeds_b) {
+        b = &b_chunk[kk * NB];
+      } else {
+        wait_flag(&mb.b_full[s]);
+        b = mb.b[s];
+      }
+
+      // Forward before computing, so the downstream tile can start its own
+      // step while this one is still doing its MB*NB multiply-accumulates.
       if (fwd_b) {
         wait_flag(&mb.b_credit[s]);
         mb.b_credit[s] = 0;

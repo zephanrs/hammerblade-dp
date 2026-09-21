@@ -231,10 +231,19 @@ injection against one FMA/cycle issue, communication is ~19% of compute —
 hideable with double buffering, so the array should stay compute-bound. If this
 ratio ever drops below ~2 the array is communication-bound and MB/NB must grow.
 
-Pipeline fill is `TGX + TGY - 1` = 23 hops deep. At a generous ~20 cycles per
-hop including handshake that is ~460 cycles against `K·MB·NB` = 16384 FMA issue
-slots, about 3%. Fill cost is not a concern at these shapes; it would be at
-small K.
+Pipeline fill is **`max(TGX, TGY)`** = 16 hops, not the sum: A propagates along
+x and B along y concurrently, so tile `(x,y)` starts at roughly `max(x,y)`
+hops, not `x+y`. At a generous ~20 cycles per hop including handshake that is
+~320 cycles against `K·MB·NB` = 16384 FMA issue slots, about 2%. Fill cost is
+not a concern at these shapes; it would be at small K.
+
+**Forward ordering couples the flows if you let it.** A must be forwarded east
+*before* the tile waits on B. Otherwise a tile holding A but blocked on B stops
+forwarding A, and a DRAM bubble at a B feeder (`y == 0`) propagates sideways
+into the A flow. The reverse coupling still exists — a tile blocked on A will
+not forward B — and fully breaking it needs non-blocking polling of both
+flags rather than parking on one, which trades power for jitter tolerance.
+Measure before deciding it is worth it.
 
 ### Transport
 
