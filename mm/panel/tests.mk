@@ -26,3 +26,8 @@ TESTS += $(call test-name,128,128,128,8,16,8,f32)
 
 # the headline: same workload and same hardware as the thesis
 TESTS += $(call test-name,256,256,256,16,16,8,f32)
+
+# blk=16 at 64^3 gives only 16 blocks over 32 tiles, so half the pod idles.
+# blk=8 gives 64 blocks, 2 per tile, at less compute per staged word. This
+# pair isolates load balance against block efficiency at a fixed shape.
+TESTS += $(call test-name,64,64,64,8,8,4,f32)

@@ -538,6 +538,62 @@ Lin Cheng's thesis benchmarks the same workload on the same hardware --
 measured 0.195 MACs/tile-cycle put us near 672k cycles at 256^3; `panel`
 exists to close that gap by keeping chunk depth at 16 instead of 4.
 
+## `mm/panel` measured — faster per tile, and load balance is now the knob
+
+All seven small rungs pass, including the uneven-distribution canary
+(48x32x64, where some tiles take zero blocks).
+
+**The headline comparison is misleading at face value.** At 64^3 / 8x4,
+`panel` ran 49906 cycles against `regblock`'s 41990 -- apparently 1.19x
+slower. But `stall_lr_aq` was 800932 in a kernel with no mailboxes: that is
+the exit barrier. blk=16 at 64^3 gives 4x4 = 16 output blocks over 32 tiles,
+so **half the pod idles**, and 16 idle tiles x 49906 cycles = 798500, which
+accounts for essentially all of it.
+
+Corrected for that, `panel` is ahead on both axes:
+
+| | `regblock` 64^3/8x4 | `panel` 64^3/8x4 |
+| --- | --- | --- |
+| Instructions, same work | 665511 | **572839** (-14%) |
+| Utilization of *working* tiles | 49.5% | **71.7%** |
+
+And the balanced row settles it. `panel` at 64^3 / 4x2 is 16 blocks over 8
+tiles, 2 each:
+
+| | utilization | FMA issue rate |
+| --- | --- | --- |
+| `regblock` 64^3/8x4 | 49.87% | **19.6%** of peak |
+| `panel` 64^3/4x2 | **80.97%** | **37.1%** of peak |
+
+**~1.9x better per-tile efficiency.** The fixed-block structure is the right
+one; it just has to be sized so blocks >= tiles.
+
+### Block size is a balance-vs-efficiency tradeoff
+
+At 32^3/2x2, where both are balanced: blk=16 -> 24119 cycles, blk=8 -> 36287.
+**Bigger blocks win by 1.5x when balanced** (more compute per staged word), so
+the rule is: pick the largest `blk` for which `(M/blk)*(N/blk)` is at least
+the tile count, ideally a multiple of it.
+
+Checked against the shapes that matter:
+- 256^3 / 16x8 at blk=16: 16x16 = **256 blocks over 128 tiles, 2 each --
+  balanced.** The headline config is already right.
+- 128^3 / 16x8 at blk=16: 64 blocks over 128 tiles, **half idle**. Use blk=8
+  (256 blocks) there.
+
+### Projection for 256^3
+
+Per-chunk work is independent of K at fixed `blk` -- staging 2*blk^2 words
+against blk^3 MACs -- so the 37.1% FMA issue rate should hold at 256^3.
+That gives roughly **352k cycles, 236 us, 142 GFLOP/s** on a full pod,
+against Lin Cheng's ~500k cycles for the same workload on the same hardware.
+
+### i32 remains the slower path
+
+32^3/2x2: i32 41109 cycles vs f32 24119, **1.70x slower**, with 2.5x the
+scratchpad traffic (63477 local ops vs 25612). Same register-spill cause as
+before, more pronounced at the larger block.
+
 ## Stage 5 — optimizations on the systolic array
 
 In rough order of expected value:
