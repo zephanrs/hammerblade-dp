@@ -60,6 +60,28 @@ elem_t a_chunk[MB * BLK_K];
 elem_t b_chunk[BLK_K * NB];
 elem_t a_win[BLK_C * MB];
 
+// bsg_unroll on the forwarding loops did not produce the shape unrolled_load
+// does. This forwards in fixed groups of 8: eight loads issued back to back, a
+// compiler fence, then eight stores -- the same pattern the staging path uses,
+// so several accesses are in flight instead of one load-store pair at a time.
+// Groups of 8 rather than one unrolled_load<N>: at N = BLK_C*MB = 64 the
+// temporaries would spill out of the 32 FP registers and round-trip the stack.
+// N is a compile-time constant, so both levels unroll to straight-line code.
+template <int N>
+static inline __attribute__((always_inline))
+void forward_words(elem_t* __restrict dst, const elem_t* __restrict src) {
+  bsg_unroll(16)
+  for (int off = 0; (off + 8) <= N; off += 8) {
+    unrolled_load<elem_t, 8>(&dst[off], &src[off]);
+  }
+
+  // tail, for an N that is not a multiple of 8
+  bsg_unroll(8)
+  for (int off = (N / 8) * 8; off < N; off++) {
+    dst[off] = src[off];
+  }
+}
+
 static inline void wait_flag(volatile int* f) {
   int ready = bsg_lr((int*)f);
   if (ready == 0) {
@@ -142,10 +164,7 @@ extern "C" int kernel(elem_t* A, elem_t* B, elem_t* C, int pod_id)
       if (fwd_a) {
         wait_flag(&mb.a_credit[s]);
         mb.a_credit[s] = 0;
-        bsg_unroll(8)
-        for (int t = 0; t < (BLK_C * MB); t++) {
-          east->a[s][t] = aw[t];
-        }
+        forward_words<BLK_C * MB>(&east->a[s][0], aw);
         asm volatile("" ::: "memory");
         east->a_full[s] = 1;
       }
@@ -160,10 +179,7 @@ extern "C" int kernel(elem_t* A, elem_t* B, elem_t* C, int pod_id)
       if (fwd_b) {
         wait_flag(&mb.b_credit[s]);
         mb.b_credit[s] = 0;
-        bsg_unroll(8)
-        for (int t = 0; t < (BLK_C * NB); t++) {
-          south->b[s][t] = bw[t];
-        }
+        forward_words<BLK_C * NB>(&south->b[s][0], bw);
         asm volatile("" ::: "memory");
         south->b_full[s] = 1;
       }
