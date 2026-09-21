@@ -11,3 +11,5 @@
 !parallel/**
 !systolic/
 !systolic/**
+!regblock/
+!regblock/**

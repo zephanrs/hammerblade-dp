@@ -16,6 +16,9 @@ Variants:
   group before running a full pod.
 - `systolic` — output-stationary 2-D systolic array. A flows west to east, B
   flows north to south; only the edge tiles touch DRAM.
+- `regblock` — `parallel` with a hand-unrolled 4x4 register tile, so the C
+  accumulators stay in registers across the k loop instead of round-tripping
+  the scratchpad on every multiply-accumulate.
 
 ## Parameters
 
