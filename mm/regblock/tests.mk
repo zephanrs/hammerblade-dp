@@ -24,3 +24,12 @@ TESTS += $(call test-name,32,16,64,16,4,2,f32)
 # full pod, silicon-sized            MB=16 NB=8  -> 128+256+128 = 512 words
 TESTS += $(call test-name,128,128,128,16,16,8,f32)
 TESTS += $(call test-name,128,128,128,16,16,8,i32)
+
+# chunk-count sweep at a fixed cheap shape. K=16 with kb_16 is a single chunk,
+# so all staging is cold-start and chunk double-buffering has nothing to
+# overlap. These give 2 and 4 chunks at the same total work, which is what
+# makes staging-vs-compute overlap visible under RTL.
+#   kb=8 -> 2 chunks,  scratch 32+64+32  = 128 words
+#   kb=4 -> 4 chunks,  scratch 32+32+16  =  80 words
+TESTS += $(call test-name,16,16,16,8,4,2,f32)
+TESTS += $(call test-name,16,16,16,4,4,2,f32)
