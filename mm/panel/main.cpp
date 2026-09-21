@@ -40,9 +40,10 @@ int mm_panel(int argc, char ** argv) {
   bsg_pr_test_info("n=%d\n", n);
   bsg_pr_test_info("k=%d\n", k);
   bsg_pr_test_info("dtype=%s\n", ELEM_NAME);
-  bsg_pr_test_info("blk_k=%d\n", BLK_K);
+  bsg_pr_test_info("blk=%d\n", BLK);
   bsg_pr_test_info("tile_group=%dx%d\n", bsg_tiles_X, bsg_tiles_Y);
-  bsg_pr_test_info("block per tile=%dx%d\n", MAT_M / bsg_tiles_Y, MAT_N / bsg_tiles_X);
+  bsg_pr_test_info("output blocks=%dx%d over %d tiles\n",
+                   MAT_M / BLK, MAT_N / BLK, bsg_tiles_X * bsg_tiles_Y);
 
   // prepare inputs;
   elem_t* A = (elem_t*) malloc(m * k * sizeof(elem_t));
