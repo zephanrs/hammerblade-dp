@@ -7,3 +7,5 @@
 !single/**
 !blocked/
 !blocked/**
+!parallel/
+!parallel/**

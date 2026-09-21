@@ -10,6 +10,10 @@ Variants:
   baseline everything else is measured against.
 - `blocked` — tile (0,0) again, but each column panel of B is staged into the
   4 KB scratchpad first, so the inner loop reads both operands locally.
+- `parallel` — the C matrix tiled across the whole tile group, every tile
+  working, no inter-tile communication. Tile group size is a test parameter
+  (`tgx_`/`tgy_`) so the decomposition can be validated under RTL on a small
+  group before running a full pod.
 
 ## Parameters
 

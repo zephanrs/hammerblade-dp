@@ -35,7 +35,7 @@ matched the design exactly (`fmul` 512 = M·N·K, `fadd` 448 = M·N·(K−1),
 costing a network round trip. The loop order was right for DRAM traffic and
 wrong for network traffic.
 
-## Stage 2 — `mm/blocked` (done, awaiting measurement)
+## Stage 2 — `mm/blocked` (done, passing under RTL)
 
 Same single tile, but each column panel of B is staged into scratchpad once and
 the inner loop reads it locally. `BLK_N` is a test parameter; `K·BLK_N + BLK_N`
@@ -53,7 +53,7 @@ kernel become FP-issue-bound? If `stall_depend_dram_load` collapses and core
 utilization climbs, the single-tile story is finished and parallelism is the
 only remaining lever.
 
-## Stage 3 — `mm/parallel` (next)
+## Stage 3 — `mm/parallel` (built, awaiting measurement)
 
 **Idea.** Tile the output across all 128 tiles. No inter-tile communication at
 all — just the existing entry/exit barriers.
@@ -79,10 +79,13 @@ For M=N=K=128: MB=16, NB=8, KB=16 → 128 + 256 + 128 = 512 words.
 2-D split keeps all 128 tiles busy from N=128, M=64.
 
 **Known inefficiency, deliberately left in.** Each A sub-block is loaded by all
-16 tiles in its row, each B sub-block by all 8 tiles in its column. DRAM
-traffic is `16·M·K + 8·K·N + M·N` — 409600 words at 128³ against an ideal
-49152, i.e. **8.3× redundant**. That redundancy is exactly what stage 4
-removes, and measuring it here is what makes stage 4's gain legible.
+16 tiles in its row, each B sub-block by all 8 tiles in its column. DRAM *load*
+traffic is `16·M·K + 8·K·N` — 393216 words at 128³ against an ideal 32768, i.e.
+**12× redundant** (verified by counting in the offline harness). Counting the
+unavoidable `M·N` of C stores on both sides dilutes it to 8.3×, but loads are
+what stage 4 removes, so 12× is the figure to beat. That redundancy is exactly
+what stage 4 removes, and measuring it here is what makes stage 4's gain
+legible.
 
 **Optimizations.** Reuse the stage-2 inner loop unchanged. Peel k=0 per
 k-chunk. Load A/B sub-blocks with `unrolled_load` so round trips overlap.
@@ -107,7 +110,7 @@ north→south along tile columns, and each tile forwards what it receives.
 **Why output-stationary.** C never moves, so there is no accumulation traffic —
 the single most expensive thing to move, since it is touched K times. A and B
 each traverse the array exactly once. DRAM traffic becomes `M·K + K·N + M·N`,
-optimal, and 8.3× below stage 3 at 128³.
+optimal, and 12× below stage 3 on loads at 128³.
 
 **Feasibility check.** Per k step a tile does `MB·NB` FMAs and moves `MB+NB`
 words. At MB=16, NB=8 that is 128 FMAs per 24 words = **5.3 FMAs per word
