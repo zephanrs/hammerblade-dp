@@ -6,6 +6,9 @@ directory, each keeping the previous as a baseline to measure against.
 Every stage is a new directory. Nothing is edited in place, so every number
 stays reproducible and regressions are visible.
 
+**Status.** Stages 1–2 pass under RTL. Stage 3 is built and verified offline,
+awaiting its first RTL run. Stage 4 is designed below, not yet built.
+
 ## Hardware budget (the constraints every stage designs against)
 
 | resource | value | consequence |
@@ -55,6 +58,10 @@ only remaining lever.
 
 ## Stage 3 — `mm/parallel` (built, awaiting measurement)
 
+Verified offline: values exact both dtypes, full coverage of C with no gaps
+or overlaps across 10 tile/shape configurations, scratchpad within budget,
+all four static_asserts confirmed firing.
+
 **Idea.** Tile the output across all 128 tiles. No inter-tile communication at
 all — just the existing entry/exit barriers.
 
@@ -100,38 +107,104 @@ that is the reason, and it argues for going straight to stage 4.
 and B are never loaded redundantly: A flows west→east along tile rows, B flows
 north→south along tile columns, and each tile forwards what it receives.
 
-**Per k step, tile `(x,y)`:**
+**Why output-stationary.** C is touched K times and is by far the most
+expensive operand to move, so it stays put. A and B each traverse the array
+exactly once. DRAM load traffic becomes `M·K + K·N`, optimal, and 12× below
+stage 3 at 128³.
 
-1. receive `a[0..MB)` from the west (or load from DRAM if `x == 0`)
-2. receive `b[0..NB)` from the north (or load from DRAM if `y == 0`)
-3. forward `a` east, `b` south — *before* computing, so the pipeline fills
-4. `c[i][j] += a[i] * b[j]` for all `MB·NB` pairs
+### Dataflow
 
-**Why output-stationary.** C never moves, so there is no accumulation traffic —
-the single most expensive thing to move, since it is touched K times. A and B
-each traverse the array exactly once. DRAM traffic becomes `M·K + K·N + M·N`,
-optimal, and 12× below stage 3 on loads at 128³.
+Tile `(x,y)` owns the same C block as stage 3: rows `[y·MB, (y+1)·MB)`,
+columns `[x·NB, (x+1)·NB)`. For each `k` in `0..K` it needs
 
-**Feasibility check.** Per k step a tile does `MB·NB` FMAs and moves `MB+NB`
-words. At MB=16, NB=8 that is 128 FMAs per 24 words = **5.3 FMAs per word
-moved**. At one word/cycle injection and one FMA/cycle issue, communication is
-~19% of compute — hideable with double buffering, so the array should stay
-compute-bound. This ratio is the number to check first; if it drops below ~2
-the array is communication-bound and MB/NB need to grow.
+- `a[0..MB)` = `A[row0 .. row0+MB, k]` — a *column* slice of its row slab
+- `b[0..NB)` = `B[k, col0 .. col0+NB]` — a *row* slice of its column slab
 
-**Transport.** The `nw/mailbox.hpp` pattern applies directly: payload stores
-then a flag store (point-to-point network ordering makes this safe), receiver
-parks on `bsg_lr`/`bsg_lr_aq`, credit flag back to the sender for
-backpressure. Two independent flows per tile (east and south), so two mailbox
-pairs.
+and computes `c[i][j] += a[i] * b[j]`, i.e. exactly the rank-1 update the
+earlier stages already use, so the inner kernel carries over unchanged.
 
-**Scratchpad.** C block MB·NB=128, plus double-buffered a/b inflow
-2·(MB+NB)=48 → ~176 words. Comfortable, which leaves room to grow MB/NB.
+### The strided-A problem
 
-**Deadlock risk.** Two flows on a dimension-ordered network with finite
-buffering. A flows purely in +x, B purely in +y, and both are strictly
-feed-forward with no cycles, so there is no circular wait — but the credit
-scheme has to be per-flow, or a stalled B consumer can block an A forward.
+`a[0..MB)` is a column of A, so reading it straight from DRAM is stride-K —
+one vcache line per element, the same mistake `mm/single` made. So the `x == 0`
+tiles do **not** feed from DRAM per k. They stage an `MB × KB` chunk of their A
+slab exactly as stage 3 does (each row a contiguous run, `unrolled_load`), then
+feed columns out of scratchpad. `y == 0` tiles stage a `KB × NB` chunk of B the
+same way; B's slices are already contiguous, but chunking keeps the two edges
+symmetric.
+
+### Per-k protocol, tile `(x,y)`
+
+```
+for kb in 0..K step KB:
+    if x == 0: stage A chunk  (MB x KB) from DRAM
+    if y == 0: stage B chunk  (KB x NB) from DRAM
+    for kk in 0..KB:
+        buf = kk & 1                          # double buffer
+        a = (x == 0) ? &a_chunk[:, kk] : recv_west(buf)   # MB words
+        b = (y == 0) ? &b_chunk[kk, :] : recv_north(buf)  # NB words
+        if x < TGX-1: send_east(buf, a)       # forward BEFORE computing,
+        if y < TGY-1: send_south(buf, b)      # so the pipeline fills
+        for i in 0..MB:
+            for j in 0..NB:
+                c[i][j] += a[i] * b[j]
+        release_credit_west(buf); release_credit_north(buf)
+write c block to DRAM
+```
+
+Forwarding before computing is what lets tile `(x+1,y)` start its own k step
+while `(x,y)` is still doing its `MB·NB` FMAs.
+
+### Scratchpad accounting (128³, 16×8, MB=16, NB=8, KB=16)
+
+| tile | contents | words |
+| --- | --- | --- |
+| interior | C block 128 + a_in 2·16 + b_in 2·8 | 176 |
+| `x == 0` | + A chunk MB·KB | +256 |
+| `y == 0` | + B chunk KB·NB | +128 |
+| `(0,0)` | all of the above | **560** |
+
+Under the 768-word budget, with room to grow MB/NB. Note every tile compiles
+the same binary, so all tiles pay the edge buffers in static allocation — the
+budget check must use the `(0,0)` figure, not the interior one.
+
+### Feasibility
+
+Per k step a tile does `MB·NB` FMAs and moves `MB+NB` words. At MB=16, NB=8
+that is 128 FMAs per 24 words = **5.3 FMAs per word moved**. At one word/cycle
+injection against one FMA/cycle issue, communication is ~19% of compute —
+hideable with double buffering, so the array should stay compute-bound. If this
+ratio ever drops below ~2 the array is communication-bound and MB/NB must grow.
+
+Pipeline fill is `TGX + TGY - 1` = 23 hops deep. At a generous ~20 cycles per
+hop including handshake that is ~460 cycles against `K·MB·NB` = 16384 FMA issue
+slots, about 3%. Fill cost is not a concern at these shapes; it would be at
+small K.
+
+### Transport
+
+The `nw/mailbox.hpp` pattern applies directly: payload stores then a flag store
+(point-to-point network ordering makes this safe), receiver parks on
+`bsg_lr`/`bsg_lr_aq`, credit flag back to the sender for backpressure.
+
+**Credits must be per-flow.** A flows strictly +x and B strictly +y, both
+feed-forward with no cycles, so there is no circular wait and no deadlock — but
+a single shared credit would let a stalled B consumer block an A forward, which
+reintroduces one artificially.
+
+### Design decisions, and what was rejected
+
+| decision | taken | rejected alternative |
+| --- | --- | --- |
+| stationary operand | C (output-stationary) | A- or B-stationary: C would then move K times, the worst choice |
+| edge tiles | also compute | dedicating row 0 + column 0 as pure feeders costs 23 of 128 tiles (18%), worse than the ~12% edge imbalance it removes |
+| message granularity | one k step per message | batching KC steps cuts flag overhead but multiplies buffering and deepens fill; revisit if handshake cost shows up |
+| A delivery | store-and-forward | network multicast along the row — no hardware support, and store-and-forward keeps the credit scheme simple |
+
+**Known imbalance.** `x == 0` tiles additionally load `MB·K` words of A and
+`y == 0` tiles `K·NB` of B. The array runs at the speed of its slowest tile, so
+expect the edges to gate throughput by roughly 10–15% at 128³. Worth measuring
+per-tile before trying to fix.
 
 ## Stage 5 — optimizations on the systolic array
 
