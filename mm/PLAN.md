@@ -415,6 +415,48 @@ larger chunks hide more latency, so it is a knob worth revisiting.
 dataflow — same register tile, same forced FMA — so `sysreg` vs `regblock` is
 the dataflow question with nothing else moving.
 
+## Results summary — 16x16x16 on 4x2, f32
+
+All variants, same shape. `regblock` and `sysreg` differ *only* in dataflow
+(same 4x4 register tile, same forced FMA), so that pair is the clean test.
+
+| variant | Runtime | Instrs | Stall | remote loads | vs `parallel` |
+| --- | --- | --- | --- | --- | --- |
+| `parallel` | 5749 | 27498 | 17649 | 1536 | 1.00x |
+| `regblock` | 4267 | 17426 | 16089 | 1536 | 1.35x |
+| `regblock` + FMA | **3985** | 12818 | 18416 | 1536 | **1.44x** |
+| `sysreg` kc=4 | 4995 | 17156 | 21710 | **512** | 1.15x |
+| `sysreg` kc=16 | 5810 | 13685 | 32092 | 512 | 0.99x |
+| `systolic` (+unroll) | 6617 | 32848 | 18402 | 512 | 0.87x |
+| `systolic` (original) | 7952 | 36946 | 24504 | 512 | 0.72x |
+
+Single-tile progression at 8^3: `single` 19973 -> `sysreg` 1x1 3569, **5.6x**
+from inner-loop work alone (scratchpad staging, register tiling, fused FMA).
+
+### The merge worked; the dataflow still loses at this ratio
+
+`systolic` 6617 -> `sysreg` 4995, a 24.5% improvement from batching plus the
+register tile. But `regblock` is still 1.25x faster while issuing **3x more**
+DRAM loads (1536 vs 512). The systolic array wins the memory argument and
+loses the runtime, because `stall_lr_aq` is 13074 (33%) -- mailbox waiting
+costs more than the DRAM traffic it saves at MB*NB = 32.
+
+### Window size: kc=4 beats kc=16
+
+kc=16 cut instructions (13685 vs 17156 -- the handshake amortised exactly as
+designed) but ran **slower** (5810 vs 4995) because `stall_lr_aq` nearly
+doubled to 22073. A larger window makes a tile wait for the whole window
+before it can compute. Batching trades handshake overhead against pipeline
+granularity, and past kc=4 granularity costs more than overhead saves.
+
+### The 4x4 register tile spills on the integer path
+
+i32 is *slower* than f32 at the same shape (2161 vs 1919 at 8^3/2x2), with
+twice the scratchpad traffic (1963 vs 972 local ops). 16 accumulators plus 8
+operands compete with pointers and loop counters in the 32 GPRs, whereas f32
+has a dedicated 32-entry FP register file. The register-tiled kernel is
+viable in float only.
+
 ## Stage 5 — optimizations on the systolic array
 
 In rough order of expected value:
