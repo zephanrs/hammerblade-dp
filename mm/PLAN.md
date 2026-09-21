@@ -71,8 +71,20 @@ Three findings:
 
 1. **No FMA contraction.** `fadd` 512 *and* `fmul` 512 -- every
    multiply-accumulate is still two FP instructions, so `-ffp-contract=fast`
-   did not take. The hardware has `eFMADD` (confirmed in `fpu_float_fma.sv`),
-   so this is a toolchain question, not an ISA one. Open.
+   did not take. Disassembly confirms it: four independent `fmul.s` followed
+   by four `fadd.s`, with `b[0..3]` correctly hoisted into registers. The
+   hardware has `eFMADD` (confirmed in `fpu_float_fma.sv`), so this is a
+   toolchain question, not an ISA one.
+
+   **Deferred by decision.** Because the compiler batches four independent mul
+   chains before the adds, the first `fmul` has reached writeback by the time
+   the first `fadd` issues -- so the missing fusion costs *issue slots, not
+   stalls*. That bounds the win at 512 of 4214 instructions (~12%), and under
+   ~6% of cycles given ~50% are stall. Both larger levers below come first.
+   When revisited: check the flag reaches the RISC-V compile at all (it may be
+   dropped or overridden by a later include), then try `__builtin_fmaf`, which
+   is safe here since the hardware FMA is confirmed and cannot degrade to a
+   libcall.
 2. **42% of cycles in `stall_depend_dram_seq_load`**, but mostly a shape
    artifact: at 8^3 on 4 tiles each tile does 128 MACs against 64 remote loads,
    2:1, with nothing to hide latency behind. The staging bursts (BLK_K=8,
