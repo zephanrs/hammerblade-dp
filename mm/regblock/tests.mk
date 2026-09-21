@@ -40,3 +40,9 @@ TESTS += $(call test-name,16,16,16,4,4,2,f32)
 # tiles instead of 128. kb=8 to match sysreg, which cannot afford kb=16.
 #   scratch 128 + 128 + 64 = 320 words
 TESTS += $(call test-name,64,64,64,8,8,4,f32)
+
+# Full pod at 256^3. MB=32 NB=16 makes the resident C block 512 words, which
+# leaves room only for kb=4 -- the worst setting per the chunk sweep, but the
+# only one that fits without restructuring C into sub-panels.
+#   scratch 512 + 128 + 64 = 704 words
+TESTS += $(call test-name,256,256,256,4,16,8,f32)
