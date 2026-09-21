@@ -22,6 +22,10 @@ Variants:
 - `sysreg` — `systolic` and `regblock` merged: messages carry a window of
   `BLK_C` k steps, which both amortises the handshake and gives the 4x4
   register tile somewhere for C to live across k.
+- `panel` — fixed BLK x BLK output blocks strided across the tile group, so
+  the working set is three BLK x BLK buffers at any matrix size. This is the
+  structure from Lin Cheng's thesis; it is what lets large problems keep the
+  best chunk depth instead of shrinking it to fit.
 
 ## Parameters
 

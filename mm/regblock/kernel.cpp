@@ -5,7 +5,7 @@
 #include "unroll.hpp"
 #include <cstdint>
 
-// mm/parallel plus tiling into registers, following section 2.4.3 of Chen's
+// mm/parallel plus tiling into registers, following section 2.4.3 of Lin Cheng's
 // thesis (Cornell, 2022).
 //
 // mm/parallel at 16x16x16 on 4x2 issued 12032 local FP loads/stores against

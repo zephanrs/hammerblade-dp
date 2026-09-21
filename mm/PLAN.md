@@ -312,8 +312,8 @@ per-tile before trying to fix.
 
 ## Stage 4b — `mm/regblock` (built, awaiting RTL)
 
-`mm/parallel` plus tiling into registers, following section 2.4.3 of Chen's
-thesis (*Programming and Optimizing Manycore Architectures*, Cornell 2022,
+`mm/parallel` plus tiling into registers, following section 2.4.3 of Lin Cheng's
+thesis (Cornell 2022,
 <https://www.csl.cornell.edu/~cbatten/pdfs/chen-manycore-prog-cuthesis2022.pdf>).
 
 A 4×4 sub-block of C is held in 16 registers across the **whole** k loop. Per k
@@ -503,6 +503,40 @@ to running both techniques on a 4 KB scratchpad.
   network itself (`stall_remote_req` is only 0.82% in `sysreg`).
 - A regime where DRAM bandwidth is actually saturated. At 64^3 on 32 tiles it
   is not, which is precisely why redundant loads are affordable.
+
+## Stage 7 — `mm/panel` (built, awaiting RTL)
+
+Fixed-size output blocks, the structure of Lin Cheng's thesis section 2.4.2
+with the 4x4 register tile of 2.4.3 inside.
+
+**Why it was needed.** `mm/regblock` ties the per-tile C block to the tile
+group: MB = M/TGY. At 256x256 on a 16x8 pod that is 32x16 = 512 words, leaving
+room for only `BLK_K=4` -- the worst chunk depth the sweep found. The block
+grew with the problem, so the staging buffers got squeezed exactly when the
+problem got big enough to matter.
+
+Here the block is a compile-time `BLK x BLK` and each tile loops over as many
+as it needs (`for rr = tile_y; rr < M/BLK; rr += TGY`). Working set is three
+`BLK x BLK` buffers -- **768 words at BLK=16, constant at every matrix size**,
+the same 3 KB of 4 KB the thesis uses. Chunk depth stays at its best setting
+at any problem size.
+
+Verified offline: exact both dtypes, full coverage including shapes where
+blocks do not divide evenly over the tile group (some tiles take 0 blocks),
+working set constant at 768 words from 16^3 to 256^3.
+
+**Load balance is now a BLK choice.** At 256^3/16x8, BLK=16 gives 256 blocks
+over 128 tiles -- exactly 2 each, balanced. At 128^3, BLK=16 gives only 64
+blocks, so **half the pod idles**; BLK=8 gives 256 blocks at less compute per
+staged word. Both rows are in `tests.mk`.
+
+### The target
+
+Lin Cheng's thesis benchmarks the same workload on the same hardware --
+256x256 on 128 cores, 16x8 -- reporting roughly 4.5M cycles naive down to
+~0.5M for the fully optimised kernel, a 9x speedup. Extrapolating `regblock`'s
+measured 0.195 MACs/tile-cycle put us near 672k cycles at 256^3; `panel`
+exists to close that gap by keeping chunk depth at 16 instead of 4.
 
 ## Stage 5 — optimizations on the systolic array
 

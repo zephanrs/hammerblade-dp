@@ -15,3 +15,5 @@
 !regblock/**
 !sysreg/
 !sysreg/**
+!panel/
+!panel/**
