@@ -13,3 +13,5 @@
 !systolic/**
 !regblock/
 !regblock/**
+!sysreg/
+!sysreg/**

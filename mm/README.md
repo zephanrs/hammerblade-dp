@@ -19,6 +19,9 @@ Variants:
 - `regblock` — `parallel` with a hand-unrolled 4x4 register tile, so the C
   accumulators stay in registers across the k loop instead of round-tripping
   the scratchpad on every multiply-accumulate.
+- `sysreg` — `systolic` and `regblock` merged: messages carry a window of
+  `BLK_C` k steps, which both amortises the handshake and gives the 4x4
+  register tile somewhere for C to live across k.
 
 ## Parameters
 

@@ -393,6 +393,28 @@ amortize in the direction we cannot currently run. **The 128^3 / 16x8 run is
 now the single highest-value measurement left** -- it is the only one that can
 settle whether systolic beats data-parallel at all.
 
+## Stage 6 — `mm/sysreg` (built, awaiting RTL)
+
+`mm/systolic` and `mm/regblock` merged. These had to become one change: the
+register tile needs C to stay in registers across k, but the per-k mailbox
+gives no window to hold it across — a 4x4 tile per k step would cost 16 loads
++ 16 stores per 16 FMAs, exactly the 2 scratchpad-ops-per-FMA systolic already
+had. So messages now carry `BLK_C` k steps, which does both jobs at once:
+amortises the flags and waits that never amortised, and creates the window the
+register tile needs.
+
+Verified offline: values exact both dtypes, full coverage, zero interior DRAM,
+DRAM loads still on the ideal 32768 at 128^3, scratchpad within budget, and
+handshakes down by exactly `BLK_C`-fold (7424 vs 29696 at 128^3, BLK_C=4).
+
+Note `BLK_K=8` at full pod, not 16: at `kb=16` the budget lands exactly on 768
+with nothing left for the stack. That trades against the kb sweep finding that
+larger chunks hide more latency, so it is a knob worth revisiting.
+
+**This makes the comparison clean.** `regblock` and `sysreg` now differ only in
+dataflow — same register tile, same forced FMA — so `sysreg` vs `regblock` is
+the dataflow question with nothing else moving.
+
 ## Stage 5 — optimizations on the systolic array
 
 In rough order of expected value:

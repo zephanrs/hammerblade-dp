@@ -1,0 +1,12 @@
+*
+
+!.gitignore
+!Makefile
+!kernel.cpp
+!main.cpp
+!elem.hpp
+!unroll.hpp
+!app_path.mk
+!template.mk
+!test_defs.mk
+!tests.mk
