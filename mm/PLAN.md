@@ -302,11 +302,43 @@ reintroduces one artificially.
 expect the edges to gate throughput by roughly 10–15% at 128³. Worth measuring
 per-tile before trying to fix.
 
+## Stage 4b — `mm/regblock` (built, awaiting RTL)
+
+`mm/parallel` plus tiling into registers, following section 2.4.3 of Chen's
+thesis (*Programming and Optimizing Manycore Architectures*, Cornell 2022,
+<https://www.csl.cornell.edu/~cbatten/pdfs/chen-manycore-prog-cuthesis2022.pdf>).
+
+A 4×4 sub-block of C is held in 16 registers across the **whole** k loop. Per k
+step the inner kernel loads 4 A values and 4 B values and issues 16 FMAs, so C
+touches the scratchpad once per sub-block per chunk instead of once per MAC.
+24 FP values are live at once (16 accumulators + 4 A + 4 B) of 32 architectural
+registers.
+
+The 16 FMAs are written out by hand, not left to `bsg_unroll`. Only a full
+unroll lets the accumulators stay in registers across k, and every access is a
+constant offset from one base pointer (`ab`, `bb`, `cb`) so the compiler emits
+register-offset addressing off a single base register — the thesis calls this
+out specifically, and `addi` was 17% of our dynamic instructions.
+
+Verified offline: values exact both dtypes, full coverage, and scratchpad
+traffic down ~5× — from ~1.6 ops per MAC to **0.62**, flipping the ratio from
+worse-than-1:1 to better than 1:1.
+
+**Structural note.** The thesis makes k the *inner* loop so C can stay in
+registers across it. In `mm/systolic` k is the *outermost* loop, because the
+mailbox delivers one k step at a time — so register tiling and message batching
+are the same optimization from two directions, and systolic needs a k-window
+before it can hold C in registers. That is the next merge point.
+
+The thesis also applies the runahead copy of section 2.4.4 (all loads, compiler
+fence, then all stores). The repo's `unrolled_load` already does exactly this,
+so staging inherits it.
+
 ## Stage 5 — optimizations on the systolic array
 
 In rough order of expected value:
 
-1. **Register-blocked inner kernel.** *Promoted to first on stage 3 evidence:*
+1. ~~**Register-blocked inner kernel.**~~ *Built as stage 4b.* Original note:
    at 8³ the kernel issued 1600 local FP loads/stores against 1024 FP
    arithmetic ops, because `c[j] +=` round-trips scratchpad on every MAC. With
    32 FP registers a 4×4 C sub-tile lives entirely in registers — 16 for C, 4

@@ -15,6 +15,7 @@ mm/single/       Matrix multiply, single-tile baseline (f32 / i32)
 mm/blocked/      Matrix multiply, B panel staged in scratchpad
 mm/parallel/     Matrix multiply, C tiled across the tile group
 mm/systolic/     Matrix multiply, output-stationary systolic array
+mm/regblock/     Matrix multiply, 4x4 register-tiled inner kernel
 dummy/roofline/  Synthetic roofline benchmark (sweeps OPS_PER_ELEM)
 common/          Shared host utilities (timing, repeat config)
 run_experiments.sh   Experiment runner → results/
