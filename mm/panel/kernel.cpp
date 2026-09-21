@@ -40,6 +40,86 @@ elem_t a_blk[BLK * BLK];
 elem_t b_blk[BLK * BLK];
 elem_t c_blk[BLK * BLK];
 
+// Load the 4 A and 4 B values for one k step of one 4x4 sub-block. Every
+// access is a constant offset from one base pointer, so the compiler emits
+// register-offset addressing off a single base register.
+#define MM_LOAD_AB(kk)                                                        \
+  const elem_t* ap = &a_blk[(ii * BLK) + (kk)];                               \
+  const elem_t a0 = ap[0];                                                    \
+  const elem_t a1 = ap[BLK];                                                  \
+  const elem_t a2 = ap[2 * BLK];                                              \
+  const elem_t a3 = ap[3 * BLK];                                              \
+  const elem_t* bp = &b_blk[((kk) * BLK) + jj];                               \
+  const elem_t b0 = bp[0], b1 = bp[1], b2 = bp[2], b3 = bp[3]
+
+#define MM_MAC_16()                                                           \
+  c00 = elem_mac(a0, b0, c00);  c01 = elem_mac(a0, b1, c01);                  \
+  c02 = elem_mac(a0, b2, c02);  c03 = elem_mac(a0, b3, c03);                  \
+  c10 = elem_mac(a1, b0, c10);  c11 = elem_mac(a1, b1, c11);                  \
+  c12 = elem_mac(a1, b2, c12);  c13 = elem_mac(a1, b3, c13);                  \
+  c20 = elem_mac(a2, b0, c20);  c21 = elem_mac(a2, b1, c21);                  \
+  c22 = elem_mac(a2, b2, c22);  c23 = elem_mac(a2, b3, c23);                  \
+  c30 = elem_mac(a3, b0, c30);  c31 = elem_mac(a3, b1, c31);                  \
+  c32 = elem_mac(a3, b2, c32);  c33 = elem_mac(a3, b3, c33)
+
+// INIT selects the first pass over K. There the accumulators start from the
+// k=0 *products* rather than from memory, so the block needs neither a zeroing
+// pass over c_blk nor the first load of C back out of it -- 2*BLK*BLK
+// scratchpad ops per output block. INIT is a template parameter, so the branch
+// costs nothing at run time.
+template <bool INIT>
+static inline __attribute__((always_inline))
+void accumulate_chunk()
+{
+  for (int ii = 0; ii < BLK; ii += 4) {
+    for (int jj = 0; jj < BLK; jj += 4) {
+      elem_t* cb = &c_blk[(ii * BLK) + jj];
+      elem_t c00, c01, c02, c03, c10, c11, c12, c13;
+      elem_t c20, c21, c22, c23, c30, c31, c32, c33;
+
+      if (INIT) {
+        {
+          MM_LOAD_AB(0);
+          c00 = a0 * b0;  c01 = a0 * b1;  c02 = a0 * b2;  c03 = a0 * b3;
+          c10 = a1 * b0;  c11 = a1 * b1;  c12 = a1 * b2;  c13 = a1 * b3;
+          c20 = a2 * b0;  c21 = a2 * b1;  c22 = a2 * b2;  c23 = a2 * b3;
+          c30 = a3 * b0;  c31 = a3 * b1;  c32 = a3 * b2;  c33 = a3 * b3;
+        }
+        for (int kk = 1; kk < BLK; kk++) {
+          MM_LOAD_AB(kk);
+          MM_MAC_16();
+        }
+      } else {
+        c00 = cb[0];         c01 = cb[1];         c02 = cb[2];         c03 = cb[3];
+        c10 = cb[BLK + 0];   c11 = cb[BLK + 1];   c12 = cb[BLK + 2];   c13 = cb[BLK + 3];
+        c20 = cb[2*BLK + 0]; c21 = cb[2*BLK + 1]; c22 = cb[2*BLK + 2]; c23 = cb[2*BLK + 3];
+        c30 = cb[3*BLK + 0]; c31 = cb[3*BLK + 1]; c32 = cb[3*BLK + 2]; c33 = cb[3*BLK + 3];
+
+        for (int kk = 0; kk < BLK; kk++) {
+          MM_LOAD_AB(kk);
+          MM_MAC_16();
+        }
+      }
+
+      cb[0]         = c00;  cb[1]         = c01;  cb[2]         = c02;  cb[3]         = c03;
+      cb[BLK + 0]   = c10;  cb[BLK + 1]   = c11;  cb[BLK + 2]   = c12;  cb[BLK + 3]   = c13;
+      cb[2*BLK + 0] = c20;  cb[2*BLK + 1] = c21;  cb[2*BLK + 2] = c22;  cb[2*BLK + 3] = c23;
+      cb[3*BLK + 0] = c30;  cb[3*BLK + 1] = c31;  cb[3*BLK + 2] = c32;  cb[3*BLK + 3] = c33;
+    }
+  }
+}
+
+static inline __attribute__((always_inline))
+void stage_chunk(elem_t* A, elem_t* B, int row0, int col0, int kb)
+{
+  for (int i = 0; i < BLK; i++) {
+    unrolled_load<elem_t, BLK>(&a_blk[i * BLK], &A[((row0 + i) * MAT_K) + kb]);
+  }
+  for (int kk = 0; kk < BLK; kk++) {
+    unrolled_load<elem_t, BLK>(&b_blk[kk * BLK], &B[((kb + kk) * MAT_N) + col0]);
+  }
+}
+
 extern "C" int kernel(elem_t* A, elem_t* B, elem_t* C, int pod_id)
 {
   (void)pod_id;
@@ -56,55 +136,13 @@ extern "C" int kernel(elem_t* A, elem_t* B, elem_t* C, int pod_id)
       const int row0 = rr * BLK;
       const int col0 = rc * BLK;
 
-      bsg_unroll(8)
-      for (int t = 0; t < (BLK * BLK); t++) {
-        c_blk[t] = (elem_t)0;
-      }
+      // first pass over K initialises the accumulators; no zeroing pass.
+      stage_chunk(A, B, row0, col0, 0);
+      accumulate_chunk<true>();
 
-      for (int kb = 0; kb < MAT_K; kb += BLK) {
-
-        for (int i = 0; i < BLK; i++) {
-          unrolled_load<elem_t, BLK>(&a_blk[i * BLK], &A[((row0 + i) * MAT_K) + kb]);
-        }
-        for (int kk = 0; kk < BLK; kk++) {
-          unrolled_load<elem_t, BLK>(&b_blk[kk * BLK], &B[((kb + kk) * MAT_N) + col0]);
-        }
-
-        for (int ii = 0; ii < BLK; ii += 4) {
-          for (int jj = 0; jj < BLK; jj += 4) {
-            elem_t* cb = &c_blk[(ii * BLK) + jj];
-
-            elem_t c00 = cb[0],         c01 = cb[1],         c02 = cb[2],         c03 = cb[3];
-            elem_t c10 = cb[BLK + 0],   c11 = cb[BLK + 1],   c12 = cb[BLK + 2],   c13 = cb[BLK + 3];
-            elem_t c20 = cb[2*BLK + 0], c21 = cb[2*BLK + 1], c22 = cb[2*BLK + 2], c23 = cb[2*BLK + 3];
-            elem_t c30 = cb[3*BLK + 0], c31 = cb[3*BLK + 1], c32 = cb[3*BLK + 2], c33 = cb[3*BLK + 3];
-
-            for (int kk = 0; kk < BLK; kk++) {
-              const elem_t* ap = &a_blk[(ii * BLK) + kk];
-              const elem_t a0 = ap[0];
-              const elem_t a1 = ap[BLK];
-              const elem_t a2 = ap[2 * BLK];
-              const elem_t a3 = ap[3 * BLK];
-
-              const elem_t* bp = &b_blk[(kk * BLK) + jj];
-              const elem_t b0 = bp[0], b1 = bp[1], b2 = bp[2], b3 = bp[3];
-
-              c00 = elem_mac(a0, b0, c00);  c01 = elem_mac(a0, b1, c01);
-              c02 = elem_mac(a0, b2, c02);  c03 = elem_mac(a0, b3, c03);
-              c10 = elem_mac(a1, b0, c10);  c11 = elem_mac(a1, b1, c11);
-              c12 = elem_mac(a1, b2, c12);  c13 = elem_mac(a1, b3, c13);
-              c20 = elem_mac(a2, b0, c20);  c21 = elem_mac(a2, b1, c21);
-              c22 = elem_mac(a2, b2, c22);  c23 = elem_mac(a2, b3, c23);
-              c30 = elem_mac(a3, b0, c30);  c31 = elem_mac(a3, b1, c31);
-              c32 = elem_mac(a3, b2, c32);  c33 = elem_mac(a3, b3, c33);
-            }
-
-            cb[0]         = c00;  cb[1]         = c01;  cb[2]         = c02;  cb[3]         = c03;
-            cb[BLK + 0]   = c10;  cb[BLK + 1]   = c11;  cb[BLK + 2]   = c12;  cb[BLK + 3]   = c13;
-            cb[2*BLK + 0] = c20;  cb[2*BLK + 1] = c21;  cb[2*BLK + 2] = c22;  cb[2*BLK + 3] = c23;
-            cb[3*BLK + 0] = c30;  cb[3*BLK + 1] = c31;  cb[3*BLK + 2] = c32;  cb[3*BLK + 3] = c33;
-          }
-        }
+      for (int kb = BLK; kb < MAT_K; kb += BLK) {
+        stage_chunk(A, B, row0, col0, kb);
+        accumulate_chunk<false>();
       }
 
       for (int i = 0; i < BLK; i++) {
