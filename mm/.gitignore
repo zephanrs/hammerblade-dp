@@ -9,3 +9,5 @@
 !blocked/**
 !parallel/
 !parallel/**
+!systolic/
+!systolic/**

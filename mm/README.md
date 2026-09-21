@@ -14,6 +14,8 @@ Variants:
   working, no inter-tile communication. Tile group size is a test parameter
   (`tgx_`/`tgy_`) so the decomposition can be validated under RTL on a small
   group before running a full pod.
+- `systolic` — output-stationary 2-D systolic array. A flows west to east, B
+  flows north to south; only the edge tiles touch DRAM.
 
 ## Parameters
 

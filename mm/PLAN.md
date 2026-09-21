@@ -6,8 +6,12 @@ directory, each keeping the previous as a baseline to measure against.
 Every stage is a new directory. Nothing is edited in place, so every number
 stays reproducible and regressions are visible.
 
-**Status.** Stages 1–2 pass under RTL. Stage 3 is built and verified offline,
-awaiting its first RTL run. Stage 4 is designed below, not yet built.
+**Status.** Stages 1–3 pass under RTL. Stage 4 is being built.
+
+**Ordering decision.** Dataflow before inner-loop tuning: stage 4 (systolic)
+precedes register blocking, even though register blocking is the larger single
+lever, so the dataflow win is measured against a consistent baseline and the
+inner kernel is rewritten once against its final structure.
 
 ## Hardware budget (the constraints every stage designs against)
 
@@ -85,11 +89,15 @@ Three findings:
    dropped or overridden by a later include), then try `__builtin_fmaf`, which
    is safe here since the hardware FMA is confirmed and cannot degrade to a
    libcall.
-2. **42% of cycles in `stall_depend_dram_seq_load`**, but mostly a shape
-   artifact: at 8^3 on 4 tiles each tile does 128 MACs against 64 remote loads,
-   2:1, with nothing to hide latency behind. The staging bursts (BLK_K=8,
-   NB=4) are also too short to pipeline. At 128^3 on 16x8 the ratio is 5.3:1.
-   Re-measure at 16^3 and up before drawing conclusions.
+2. **Chunk staging is not overlapped with compute.** At 8^3/2x2,
+   `stall_depend_dram_seq_load` was 42%; at 16^3/4x2 it fell to 26% and
+   utilization rose 48.8% -> 60.4%, so part of the 8^3 figure was shape
+   artifact -- but 26% is real. The kernel stages a chunk, computes on it,
+   then stages the next, strictly serial. `stall_remote_req` also grew
+   0.7% -> 9.1% as 8 tiles contended for network injection. Remote loads were
+   exactly 1536 = 8 x (MB*K + K*NB), confirming the 12x redundancy figure.
+   The systolic stage addresses this structurally: only the 23 edge tiles
+   touch DRAM, the other 105 never do.
 3. **Local FP memory traffic exceeds FP arithmetic**: `local_flw` 832 +
    `local_fsw` 768 = 1600 against 1024 FP ops. C is being loaded and stored
    from scratchpad on every single MAC. This is the register-blocking
@@ -135,7 +143,20 @@ k-chunk. Load A/B sub-blocks with `unrolled_load` so round trips overlap.
 `stall_depend_dram_load` does not fall roughly in proportion to the tile count,
 that is the reason, and it argues for going straight to stage 4.
 
-## Stage 4 — `mm/systolic` (the target)
+## Stage 4 — `mm/systolic` (built, awaiting RTL)
+
+Verified offline: values exact both dtypes, full coverage of C, **zero DRAM
+access from any interior tile**, and DRAM loads landing exactly on the ideal
+`M·K + K·N` = 32768 at 128³ — 12.0× below `mm/parallel`, matching the
+prediction. Kernel syntax-clean across 7 tile configurations; scratchpad guard
+confirmed firing.
+
+**What offline checking cannot cover:** the handshake. Credits, slot reuse and
+forward ordering are timing-dependent and only testable on hardware. This is
+why the test ladder starts at 1×1 (no neighbours), then 2×1 and 1×2 (one flow
+in isolation), then 2×2 (every tile role present), then 4×2 (first genuinely
+interior tiles). Walk it in that order; a hang at a given rung localises the
+bug to the structure that rung introduced.
 
 **Idea.** Output-stationary 2-D systolic array. Same C tiling as stage 3, but A
 and B are never loaded redundantly: A flows west→east along tile rows, B flows
