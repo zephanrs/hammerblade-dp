@@ -6,6 +6,14 @@ directory, each keeping the previous as a baseline to measure against.
 Every stage is a new directory. Nothing is edited in place, so every number
 stays reproducible and regressions are visible.
 
+**Convention: optimizations land in the newest kernel only.** Earlier variants
+are frozen baselines and are not back-patched -- re-tuning them would invalidate
+the numbers already recorded against them. The consequence is that two variants
+can differ in more than one dimension (regblock has forced FMA, systolic does
+not), so a cross-variant comparison is only meaningful when the newer kernel
+carries everything the older one had. When systolic and regblock merge, that
+merged kernel inherits both.
+
 **Status.** Stages 1–3 pass under RTL. Stage 4 is being built.
 
 **Ordering decision.** Dataflow before inner-loop tuning: stage 4 (systolic)
